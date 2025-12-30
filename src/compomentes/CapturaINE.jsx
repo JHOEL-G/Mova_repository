@@ -297,14 +297,6 @@ export default function CapturaINE() {
                 <Camera className="w-6 h-6" />
                 {cameraReady ? "CAPTURAR CON CÁMARA" : "Preparando cámara..."}
               </button>
-              <button
-                onClick={() => fileInputRef.current.click()}
-                disabled={isProcessing}
-                className="w-full bg-white text-[#2D2296] border-2 border-[#2D2296] py-4 rounded-full font-bold flex items-center justify-center gap-3 shadow-md active:scale-[0.98] transition-all"
-              >
-                <Upload className="w-5 h-5" />
-                SUBIR DESDE ARCHIVO
-              </button>
             </div>
 
             {step === 3 && fotoIneFrontal && (

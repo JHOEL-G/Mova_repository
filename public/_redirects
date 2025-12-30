@@ -1,0 +1,6 @@
+# Proxies para tus APIs (Simulan el vite.config.js en Netlify)
+/api-negocio/* https://api.acreditamv.financialsoft.site/:splat  200!
+/api-servicios/* https://servicios.apifs.xyz/:splat  200!
+
+# Redirección para Single Page Application (Evita el error 404 al recargar)
+/* /index.html  200
