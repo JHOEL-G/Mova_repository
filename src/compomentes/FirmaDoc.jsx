@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { globalApi } from "../../services/globalApi";
-import { PDFDocument } from "pdf-lib"; // 1. Importar la librería
+import { PDFDocument } from "pdf-lib";
 
 export default function FirmaDoc({ referencia, correoUsuario, nombreUsuario }) {
   const sigCanvas = useRef({});
@@ -18,22 +18,15 @@ export default function FirmaDoc({ referencia, correoUsuario, nombreUsuario }) {
 
   const extraerPrimeraPagina = async (base64Completo) => {
     try {
-      // Cargar el PDF completo (el que viene del back o local)
       const pdfDoc = await PDFDocument.load(base64Completo);
-
-      // Crear un nuevo documento PDF
       const nuevoPdf = await PDFDocument.create();
-
-      // Copiar solo la primera página (índice 0)
       const [primeraPagina] = await nuevoPdf.copyPages(pdfDoc, [0]);
       nuevoPdf.addPage(primeraPagina);
-
-      // Guardar el nuevo PDF y convertirlo a Base64
       const pdfBytes = await nuevoPdf.saveAsBase64();
       return pdfBytes;
     } catch (error) {
       console.error("Error al recortar el PDF:", error);
-      return base64Completo; // Si falla, enviamos el original por seguridad
+      return base64Completo;
     }
   };
 
@@ -45,19 +38,16 @@ export default function FirmaDoc({ referencia, correoUsuario, nombreUsuario }) {
 
     setLoading(true);
     try {
-      // 1. Obtener el PDF actual (Completo)
+      // 1. Obtener PDF
       const resDoc = await globalApi.obtenerDocumentoContrato(referencia);
       const pdfBase64Completo = await blobToBase64(resDoc.data);
 
-      // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
-      // 2. Recortar para enviar SOLO la primera página
-      console.log("Recortando documento: extrayendo solo la primera página...");
+      // 2. Recortar
       const pdfSoloPrimeraPagina = await extraerPrimeraPagina(
         pdfBase64Completo
       );
-      // ---------------------------------
 
-      // 3. Preparar la imagen de la firma
+      // 3. Imagen de la firma
       const firmaImagenBase64 = sigCanvas.current
         .getCanvas()
         .toDataURL("image/png")
@@ -65,36 +55,94 @@ export default function FirmaDoc({ referencia, correoUsuario, nombreUsuario }) {
 
       const dataFirma = {
         referenciaId: referencia,
-        pdfBase64: pdfSoloPrimeraPagina, // <--- Enviamos el PDF recortado
+        pdfBase64: pdfSoloPrimeraPagina,
         nombre: nombreUsuario,
         correo: correoUsuario,
         firmaImagenBase64: firmaImagenBase64,
         coordenadas: [0],
       };
 
-      // 4. POST: Firmar (Enviando solo 1 hoja)
-      await globalApi.firmarDocumento(dataFirma);
+      // 4. POST: Firmar
+      console.log("✍️ Firmando documento...");
+      const resFirma = await globalApi.firmarDocumento(dataFirma);
+      console.log("✅ Resultado Firma NOM151:", resFirma);
 
-      // 5. Espera de seguridad para que el Back procese
-      console.log("Firma enviada. Esperando procesamiento del servidor...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (!resFirma.data || resFirma.data.length === 0) {
+        alert(
+          "El servicio de firma no devolvió datos válidos (NOM151). No se puede registrar."
+        );
+        setLoading(false);
+        return;
+      }
 
-      // 6. GET: Obtener URL Final para redirección
-      const respuestaFinal = await globalApi.obtenerUrlContratoFinal(
-        referencia
+      // --- MAPEADO CORREGIDO SEGÚN SCHEMA ---
+      const infoNom151 =
+        resFirma.data && resFirma.data[0] ? resFirma.data[0] : {};
+
+      // 5. Preparar el payload con la estructura EXACTA del schema
+      const payloadRegistro = {
+        latitud: 0,
+        logitud: 0,
+        Firma: firmaImagenBase64, // ⚠️ Con F mayúscula según error 400
+        firmaPath:
+          infoNom151.representacionVisual || infoNom151.pdfFirmado || "",
+        certificaDocumento: true,
+        firmantesRestantes: 0,
+        contratoFirma: {
+          error: resFirma.error || 0,
+          resultado: resFirma.resultado || "Exitoso",
+          data: [
+            {
+              claveMensaje: infoNom151.claveMensaje || 0,
+              codigoValidacion: infoNom151.codigoValidacion || "",
+              estatus: infoNom151.estatus || "S",
+              hash: infoNom151.hash || "",
+              nom151: infoNom151.nom151 || "",
+              pdfFirmado: infoNom151.pdfFirmado || "",
+              representacionVisual: infoNom151.representacionVisual || "",
+            },
+          ],
+        },
+      };
+
+      console.log("🔍 Verificando datos antes de registrar:");
+      console.log("Referencia:", referencia);
+      console.log("TipoId extraído:", referencia.charAt(0));
+      console.log(
+        "📦 Datos NOM151 recibidos:",
+        JSON.stringify(infoNom151, null, 2)
+      );
+      console.log(
+        "📦 Payload completo a enviar:",
+        JSON.stringify(payloadRegistro, null, 2)
       );
 
-      if (respuestaFinal.error === 0 && respuestaFinal.data?.url) {
-        alert(
-          "✅ ¡Contrato firmado con éxito! Al dar aceptar serás redirigido al documento."
-        );
-        window.location.href = respuestaFinal.data.url;
+      const respuestaFinal = await globalApi.obtenerUrlContratoFinal(
+        referencia,
+        payloadRegistro
+      );
+
+      // 6. Manejo de respuesta
+      if (respuestaFinal.error === 0) {
+        alert("✅ ¡Contrato firmado y registrado con éxito!");
+
+        const urlFinal =
+          respuestaFinal.data?.[0]?.representacionVisual ||
+          respuestaFinal.data?.[0]?.pdfFirmado;
+
+        if (urlFinal) {
+          window.location.href = urlFinal;
+        } else {
+          console.warn(
+            "No se encontró URL de redirección, pero el registro fue exitoso."
+          );
+        }
       } else {
-        alert("El servidor no devolvió la URL: " + respuestaFinal.resultado);
+        alert("Error al registrar: " + respuestaFinal.resultado);
       }
     } catch (error) {
-      console.error("Error en el proceso:", error);
-      alert("Error en la comunicación con el servidor.");
+      console.error("Error detallado en el proceso:", error);
+      alert("Error en la comunicación con el servidor. Revisa la consola.");
     } finally {
       setLoading(false);
     }

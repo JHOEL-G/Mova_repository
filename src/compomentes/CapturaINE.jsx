@@ -147,10 +147,10 @@ export default function CapturaINE() {
     }
 
     const options = {
-      maxSizeMB: 1,
+      maxSizeMB: 1.5, // ⬆️ Aumentado de 1 a 1.5 MB
       maxWidthOrHeight: 1920,
       useWebWorker: true,
-      quality: 0.8,
+      quality: 0.9, // ⬆️ Aumentado de 0.8 a 0.9
       fileType: "image/jpeg",
     };
 
@@ -277,15 +277,24 @@ export default function CapturaINE() {
               Coloca la INE en el centro, bien iluminada y sin reflejos.
             </p>
 
-            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6">
+            {/* ⭐ CAMBIOS AQUÍ */}
+            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 aspect-[4/3]">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full max-h-96 object-cover"
+                className="w-full h-full object-contain"
+                style={{
+                  transform: "scaleX(1)", // Mantén la orientación original
+                }}
               />
               <canvas ref={canvasRef} className="hidden" />
+
+              {/* Guía visual opcional para centrar la INE */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="border-4 border-white/50 rounded-2xl w-[85%] h-[60%]" />
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -296,6 +305,13 @@ export default function CapturaINE() {
               >
                 <Camera className="w-6 h-6" />
                 {cameraReady ? "CAPTURAR CON CÁMARA" : "Preparando cámara..."}
+              </button>
+              <button
+                onClick={() => fileInputRef.current.click()}
+                className="w-full bg-white text-[#2D2296] border-2 border-[#2D2296] py-5 rounded-full font-bold flex items-center justify-center gap-3 shadow-lg active:scale-[0.98] transition-all"
+              >
+                <Upload className="w-6 h-6" />
+                SUBIR FOTO DESDE DISPOSITIVO
               </button>
             </div>
 
@@ -351,9 +367,15 @@ export default function CapturaINE() {
             </div>
             <button
               onClick={() => {
+                // ✅ Guardamos ambas fotos en localStorage antes de navegar
                 if (fotoIneFrontal) {
                   localStorage.setItem(`fotoIne_${id}`, fotoIneFrontal);
                 }
+                if (fotoIneReverso) {
+                  // ESTA ES LA CLAVE: Debe coincidir con el nombre que busca el otro componente
+                  localStorage.setItem(`fotoIneReverso_${id}`, fotoIneReverso);
+                }
+
                 navigate(`/reconocimiento/${id}`, {
                   state: { fotoIneFrontal },
                 });

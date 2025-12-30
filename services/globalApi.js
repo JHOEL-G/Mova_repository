@@ -115,13 +115,20 @@ export const globalApi = {
     base64Selfie,
     referenciaId = "temp_ref"
   ) => {
+    // ⭐ NO limpiar el base64, enviarlo tal cual viene (CON prefijo)
     const payload = {
-      credencial: base64IneFrontal,
-      captura: base64Selfie,
+      credencial: base64IneFrontal, // CON prefijo data:image/jpeg;base64,
+      captura: base64Selfie, // CON prefijo data:image/jpeg;base64,
       referenciaId: String(referenciaId),
     };
 
-    console.log("Payload Biometría enviado:", payload);
+    console.log("Payload Biometría enviado:", {
+      credencial: payload.credencial.substring(0, 50) + "...",
+      captura: payload.captura.substring(0, 50) + "...",
+      referenciaId: payload.referenciaId,
+      credencialStartsWith: payload.credencial.substring(0, 30),
+      capturaStartsWith: payload.captura.substring(0, 30),
+    });
 
     try {
       const response = await apiServicios.post(
@@ -232,12 +239,91 @@ export const globalApi = {
       throw error;
     }
   },
-  obtenerUrlContratoFinal: async (referencia) => {
+
+  obtenerUrlContratoFinal: async (referencia, datosFirma) => {
     const cleanRef = referencia.trim();
-    // PRUEBA CAMBIANDO ESTA RUTA SEGÚN TU DOCUMENTACIÓN DE API
-    // Si antes usaste /Solicitud/contrato/documento para el PDF,
-    // quizás el resultado es otra ruta parecida.
-    const response = await apiNegocio.get(`/Solicitud/contrato/${cleanRef}`);
-    return response.data;
+    const tipoId = parseInt(cleanRef.charAt(0)) || 0;
+    const ID_USUARIO_SISTEMA = 1;
+
+    console.log("🚀 DATOS DE LA PETICIÓN:");
+    console.log("   Headers:", {
+      usuarioId: ID_USUARIO_SISTEMA,
+      validacionTipoId: tipoId,
+      referencia: cleanRef,
+    });
+    console.log("   Payload:", JSON.stringify(datosFirma, null, 2));
+
+    try {
+      const response = await apiNegocio.post(
+        "/Cliente/contrato/registro",
+        datosFirma,
+        {
+          headers: {
+            usuarioId: ID_USUARIO_SISTEMA,
+            validacionTipoId: tipoId,
+            referencia: cleanRef,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error 500 en Servidor:", error.response?.data);
+      throw error;
+    }
+  },
+
+  registrarBiometricos: async (data, referencia) => {
+    const ref = referencia || "";
+
+    console.log("🔍 DEBUGGING REGISTRO BIOMÉTRICO:");
+    console.log("   📋 Referencia (header):", ref);
+    console.log("   📋 Campos del payload:", Object.keys(data));
+    console.log("   📋 Tamaños:");
+    console.log("     - ocrResponse:", data.ocrResponse?.length, "chars");
+    console.log(
+      "     - biometricoResponse:",
+      data.biometricoResponse?.length,
+      "chars"
+    );
+    console.log("     - ineAnversoPath:", data.ineAnversoPath?.length, "chars");
+    console.log("     - ineReversoPath:", data.ineReversoPath?.length, "chars");
+    console.log("     - clientePath:", data.clientePath?.length, "chars");
+    console.log("   📋 Primeros 10 chars:");
+    console.log(
+      "     - ineAnversoPath:",
+      data.ineAnversoPath?.substring(0, 10)
+    );
+    console.log("     - clientePath:", data.clientePath?.substring(0, 10));
+
+    try {
+      const response = await apiNegocio.post(
+        "/Cliente/biometricos/registro",
+        data,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            usuarioId: 1,
+            validacionTipoId: parseInt(ref.charAt(0)) || 1,
+            referencia: ref,
+          },
+        }
+      );
+
+      console.log("✅ Registro exitoso:", response.data);
+      return response;
+    } catch (error) {
+      console.error("❌ ERROR EN REGISTRO:");
+      console.error("   Status:", error.response?.status);
+      console.error("   Data:", error.response?.data);
+
+      if (error.response?.data?.errors) {
+        console.error("   📛 Errores de validación:");
+        Object.entries(error.response.data.errors).forEach(([campo, msgs]) => {
+          console.error(`     • ${campo}:`, msgs);
+        });
+      }
+
+      throw error;
+    }
   },
 };

@@ -93,10 +93,10 @@ export default function ReconocimientoFacial() {
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // ⬆️ Aumentar calidad de 0.4 a 0.8
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
       setCapturedFace(imageData);
 
-      // Detener cámara para ahorrar recursos
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
         setStream(null);
@@ -125,25 +125,99 @@ export default function ReconocimientoFacial() {
   const processValidation = async (selfieData) => {
     setStep(4);
     setIsProcessing(true);
+
     try {
+      console.log(
+        "🔍 fotoIneFrontal formato:",
+        fotoIneFrontal?.substring(0, 30)
+      );
+      console.log("🔍 selfieData formato:", selfieData?.substring(0, 30));
+
+      // 1. Validar con biometría
       const resultado = await globalApi.validarIneSelfie(
         fotoIneFrontal,
         selfieData,
-        "1-61FDED12-B2D0-F011-B513-000C29AC7C09"
+        id
       );
 
       if (resultado.error !== 0) {
-        alert(`Error: ${resultado.data?.[0]?.mensaje || "No se pudo validar"}`);
+        alert(`Error: ${resultado.resultado || "No se pudo validar"}`);
         setStep(1);
         return;
       }
 
       const validacionData = resultado.data?.[0];
+      const reversoBase64 = localStorage.getItem(`fotoIneReverso_${id}`);
+
+      // ⭐ AJUSTADO: Enviar SOLO los datos relevantes en los campos JSON
+      const datosRegistro = {
+        ocrResponse: JSON.stringify({
+          codigoValidacion: validacionData.codigoValidacion,
+          estatus: validacionData.estatus,
+          mensaje: validacionData.mensaje,
+          similitud: validacionData.similitud,
+        }),
+        biometricoResponse: JSON.stringify({
+          codigoValidacion: validacionData.codigoValidacion,
+          estatus: validacionData.estatus,
+          mensaje: validacionData.mensaje,
+          similitud: validacionData.similitud,
+        }),
+        ineAnversoPath: fotoIneFrontal,
+        ineReversoPath: reversoBase64 || "",
+        clientePath: selfieData,
+      };
+
+      console.log("📤 Payload ajustado:", {
+        campos: Object.keys(datosRegistro),
+        ocrResponsePreview: datosRegistro.ocrResponse.substring(0, 100),
+        biometricoResponsePreview: datosRegistro.biometricoResponse.substring(
+          0,
+          100
+        ),
+      });
+
+      // 3. Enviar al registro
+      const registroResponse = await globalApi.registrarBiometricos(
+        datosRegistro,
+        id
+      );
+
+      if (registroResponse.data.error !== 0) {
+        alert(
+          `Error: ${registroResponse.data.resultado || "Fallo en registro"}`
+        );
+        setStep(1);
+        return;
+      }
+
+      // 4. Éxito
       setRecognitionScore(validacionData.similitud?.toFixed(2) || 0);
       setRecognitionMessage(validacionData.mensaje || "Validación completada");
       setStep(5);
     } catch (error) {
-      alert("Error de conexión. Intenta de nuevo.");
+      console.error("❌ Error en el proceso:", error);
+      console.log("📛 Respuesta completa del servidor:", error.response?.data);
+
+      let errorMsg = "Error de comunicación con el servidor";
+
+      if (error.response?.data) {
+        if (error.response.data.errors) {
+          const errores = Object.entries(error.response.data.errors)
+            .map(([campo, msgs]) => `• ${campo}: ${msgs.join(", ")}`)
+            .join("\n");
+          errorMsg = `Errores de validación:\n${errores}`;
+        } else {
+          errorMsg =
+            error.response.data.resultado ||
+            error.response.data.mensaje ||
+            error.response.data.title ||
+            JSON.stringify(error.response.data);
+        }
+      }
+
+      console.error("📛 Detalle del error:", errorMsg);
+      alert(`Error:\n${errorMsg}`);
       setStep(1);
     } finally {
       setIsProcessing(false);
