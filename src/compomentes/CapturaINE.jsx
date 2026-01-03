@@ -270,46 +270,41 @@ export default function CapturaINE() {
         )}
 
         {(step === 2 || step === 3) && (
-          <div className="w-full max-w-md text-center">
-            <h2 className="text-xl font-bold text-[#2D2296] mb-4">
+          <div className="w-full h-full flex flex-col p-4">
+            <h2 className="text-lg font-bold text-[#2D2296] mb-2">
               {step === 2 ? "Captura el FRENTE" : "Captura el REVERSO"} de tu
               INE
             </h2>
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-xs text-gray-600 mb-4">
               Coloca la INE en el centro, bien iluminada y sin reflejos.
             </p>
 
-            {/* ✅ VIDEO SIN CONTENEDOR FORZADO */}
-            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6">
+            {/* ✅ VIDEO COMPACTO SIN GUÍA */}
+            <div className="relative bg-black rounded-xl overflow-hidden shadow-lg mb-4 h-[45vh]">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full rounded-2xl" // ⬅️ Sin clases de height ni object-fit
+                className="w-full h-full object-cover"
               />
               <canvas ref={canvasRef} className="hidden" />
-
-              {/* Guía visual adaptativa */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="border-4 border-white/70 rounded-xl w-[80%] h-[55%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
-              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 mt-auto">
               <button
                 onClick={capturePhoto}
                 disabled={!cameraReady}
-                className="w-full bg-[#2D2296] text-white py-5 rounded-full font-bold flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-[0.98] transition-all"
+                className="w-full bg-[#2D2296] text-white py-4 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-[0.98] transition-all"
               >
-                <Camera className="w-6 h-6" />
+                <Camera className="w-5 h-5" />
                 {cameraReady ? "CAPTURAR CON CÁMARA" : "Preparando cámara..."}
               </button>
               <button
                 onClick={() => fileInputRef.current.click()}
-                className="w-full bg-white text-[#2D2296] border-2 border-[#2D2296] py-5 rounded-full font-bold flex items-center justify-center gap-3 shadow-lg active:scale-[0.98] transition-all"
+                className="w-full bg-white text-[#2D2296] border-2 border-[#2D2296] py-4 rounded-full font-bold flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all"
               >
-                <Upload className="w-6 h-6" />
+                <Upload className="w-5 h-5" />
                 SUBIR FOTO DESDE DISPOSITIVO
               </button>
             </div>
@@ -320,7 +315,7 @@ export default function CapturaINE() {
                   setFotoIneFrontal(null);
                   setStep(2);
                 }}
-                className="mt-6 text-blue-600 underline"
+                className="mt-3 text-blue-600 underline text-sm"
               >
                 ← Cambiar foto del frente
               </button>
