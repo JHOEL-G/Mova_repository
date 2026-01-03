@@ -367,12 +367,21 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
   return (
     <>
       <div style={{ padding: "20px", textAlign: "center" }}>
-        <h3 style={{ marginBottom: "10px" }}>Dibuja tu firma</h3>
+        <h3
+          style={{ marginBottom: "10px", fontSize: "clamp(18px, 5vw, 22px)" }}
+        >
+          Dibuja tu firma
+        </h3>
 
         {/* ✅ Mostrar información de ubicación */}
         {ubicacion && (
           <div
-            style={{ fontSize: "12px", color: "#666", marginBottom: "10px" }}
+            style={{
+              fontSize: "12px",
+              color: "#666",
+              marginBottom: "10px",
+              wordBreak: "break-word",
+            }}
           >
             📍 Ubicación obtenida: Lat {ubicacion.latitud.toFixed(6)}, Lon{" "}
             {ubicacion.longitud.toFixed(6)}
@@ -384,17 +393,20 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
             border: "1px solid #ccc",
             borderRadius: "8px",
             background: "#f9f9f9",
-            width: "440px",
+            maxWidth: "440px",
+            width: "calc(100% - 20px)",
             margin: "0 auto",
+            overflow: "hidden",
           }}
         >
           <SignatureCanvas
             ref={sigCanvas}
             penColor="black"
             canvasProps={{
-              width: 440,
+              width: Math.min(440, window.innerWidth - 60),
               height: 200,
               className: "signature-canvas",
+              style: { touchAction: "none", width: "100%", height: "auto" },
             }}
           />
         </div>
@@ -405,11 +417,19 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
             display: "flex",
             justifyContent: "center",
             gap: "10px",
+            flexWrap: "wrap",
           }}
         >
           <button
             onClick={() => sigCanvas.current.clear()}
-            style={{ padding: "10px 20px", cursor: "pointer" }}
+            style={{
+              padding: "10px 20px",
+              cursor: "pointer",
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+              background: "white",
+              minWidth: "100px",
+            }}
           >
             Limpiar
           </button>
@@ -421,8 +441,10 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
               background: loading || !ubicacion ? "#ccc" : "#2563eb",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "8px",
               cursor: loading || !ubicacion ? "not-allowed" : "pointer",
+              minWidth: "150px",
+              fontWeight: "bold",
             }}
           >
             {loading ? "Procesando..." : "Finalizar y Firmar"}
@@ -444,15 +466,16 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
             justifyContent: "center",
             alignItems: "center",
             zIndex: 9999,
+            padding: "20px",
           }}
         >
           <div
             style={{
               background: "white",
               borderRadius: "20px",
-              padding: "40px",
+              padding: "30px 20px",
               maxWidth: "500px",
-              width: "90%",
+              width: "100%",
               textAlign: "center",
               boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
             }}
@@ -480,7 +503,7 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
               style={{
                 color: "#4CAF50",
                 marginBottom: "20px",
-                fontSize: "24px",
+                fontSize: "clamp(20px, 5vw, 24px)",
               }}
             >
               ¡Felicidades!

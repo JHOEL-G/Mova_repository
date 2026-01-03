@@ -279,22 +279,20 @@ export default function CapturaINE() {
               Coloca la INE en el centro, bien iluminada y sin reflejos.
             </p>
 
-            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 aspect-[4/3]">
+            {/* ✅ VIDEO SIN CONTENEDOR FORZADO */}
+            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover" // ⬅️ CAMBIADO de object-contain a object-cover
-                style={{
-                  transform: "scaleX(1)",
-                }}
+                className="w-full rounded-2xl" // ⬅️ Sin clases de height ni object-fit
               />
               <canvas ref={canvasRef} className="hidden" />
 
-              {/* Guía visual: Asegúrate de que destaque sobre el video */}
+              {/* Guía visual adaptativa */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="border-4 border-white/70 rounded-2xl w-[85%] h-[60%] shadow-[0_0_0_1000px_rgba(0,0,0,0.3)]" />
+                <div className="border-4 border-white/70 rounded-xl w-[80%] h-[55%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
               </div>
             </div>
 
