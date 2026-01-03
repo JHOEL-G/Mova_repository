@@ -1,12 +1,20 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import FirmaDoc from "./FirmaDoc";
+
+// Configurar el worker de PDF.js
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const Paso8VisualizarContrato = () => {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [zoom, setZoom] = useState(100);
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [scale, setScale] = useState(1.0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ubicacion, setUbicacion] = useState(null);
   const [errorUbicacion, setErrorUbicacion] = useState(null);
@@ -23,10 +31,10 @@ const Paso8VisualizarContrato = () => {
         let rutaFinal = "/CONTRATO-22.pdf";
 
         if (idsEspeciales.includes(primerCaracter)) {
-          console.log("ID detectado para Contrato 11");
+          console.log("ID detectado para Contrato 22");
           rutaFinal = "/CONTRATO-22.pdf";
         } else {
-          console.log("Cargando contrato estándar 22");
+          console.log("Cargando contrato estándar 11");
           rutaFinal = "/CONTRATO-11.pdf";
         }
 
@@ -40,6 +48,11 @@ const Paso8VisualizarContrato = () => {
 
     cargarDocumento();
   }, [id]);
+
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+    setPageNumber(1);
+  };
 
   const obtenerUbicacion = () => {
     return new Promise((resolve, reject) => {
@@ -109,6 +122,18 @@ const Paso8VisualizarContrato = () => {
     setErrorUbicacion(null);
   };
 
+  const changePage = (offset) => {
+    setPageNumber((prevPageNumber) => prevPageNumber + offset);
+  };
+
+  const previousPage = () => {
+    changePage(-1);
+  };
+
+  const nextPage = () => {
+    changePage(1);
+  };
+
   if (cargando)
     return (
       <div style={{ padding: "40px", textAlign: "center" }}>
@@ -124,26 +149,38 @@ const Paso8VisualizarContrato = () => {
 
       {/* TOOLBAR */}
       <div style={toolbarStyle}>
-        <button onClick={() => setZoom((z) => Math.max(z - 25, 50))}>
+        <button onClick={() => setScale((s) => Math.max(s - 0.25, 0.5))}>
           ➖ Alejar
         </button>
-        <span style={{ fontWeight: "bold" }}>{zoom}%</span>
-        <button onClick={() => setZoom((z) => Math.min(z + 25, 200))}>
+        <span style={{ fontWeight: "bold" }}>{Math.round(scale * 100)}%</span>
+        <button onClick={() => setScale((s) => Math.min(s + 0.25, 2))}>
           ➕ Acercar
         </button>
       </div>
 
       {/* VISUALIZADOR */}
-      <div style={{ flex: 1, backgroundColor: "#525659", overflow: "hidden" }}>
-        {pdfUrl && (
-          <iframe
-            key={zoom}
-            src={`${pdfUrl}#toolbar=0&navpanes=0&zoom=${zoom}`}
-            type="application/pdf"
-            style={{ width: "100%", height: "100%", border: "none" }}
-            title="Contrato PDF"
-          />
-        )}
+      <div style={viewerContainerStyle}>
+        <Document
+          file={pdfUrl}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={
+            <div
+              style={{ color: "white", textAlign: "center", padding: "20px" }}
+            >
+              Cargando PDF...
+            </div>
+          }
+        >
+          {Array.from(new Array(numPages), (el, index) => (
+            <Page
+              key={`page_${index + 1}`}
+              pageNumber={index + 1}
+              scale={scale}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+            />
+          ))}
+        </Document>
       </div>
 
       <div style={footerStyle}>
@@ -179,11 +216,32 @@ const toolbarStyle = {
   padding: "10px",
   backgroundColor: "#e5e7eb",
 };
+
+const viewerContainerStyle = {
+  flex: 1,
+  backgroundColor: "#525659",
+  overflow: "auto",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  padding: "20px 0",
+};
+
+const paginationStyle = {
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: "15px",
+  padding: "10px",
+  backgroundColor: "#e5e7eb",
+};
+
 const footerStyle = {
   padding: "20px",
   textAlign: "center",
   backgroundColor: "#f4f4f4",
 };
+
 const btnConfirmarStyle = {
   backgroundColor: "#282195",
   color: "white",
@@ -195,6 +253,7 @@ const btnConfirmarStyle = {
   width: "100%",
   maxWidth: "300px",
 };
+
 const modalOverlayStyle = {
   position: "fixed",
   top: 0,
@@ -207,6 +266,7 @@ const modalOverlayStyle = {
   alignItems: "center",
   zIndex: 1000,
 };
+
 const modalContentStyle = {
   background: "white",
   padding: "20px",
@@ -217,6 +277,7 @@ const modalContentStyle = {
   maxHeight: "90vh",
   overflowY: "auto",
 };
+
 const closeBtnStyle = {
   position: "absolute",
   top: 10,
