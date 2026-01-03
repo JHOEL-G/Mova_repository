@@ -1,6 +1,5 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
-import { globalApi } from "../../services/globalApi";
 import { useParams } from "react-router";
 import FirmaDoc from "./FirmaDoc";
 
@@ -9,7 +8,8 @@ const Paso8VisualizarContrato = () => {
   const [cargando, setCargando] = useState(true);
   const [zoom, setZoom] = useState(100);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [datosUsuario, setDatosUsuario] = useState(null);
+  const [ubicacion, setUbicacion] = useState(null);
+  const [errorUbicacion, setErrorUbicacion] = useState(null);
   const { id } = useParams();
 
   useEffect(() => {
@@ -17,21 +17,19 @@ const Paso8VisualizarContrato = () => {
       try {
         setCargando(true);
 
-        // LÓGICA DE SELECCIÓN DE CONTRATO
-        // Verificamos si el ID empieza con 2, 3 o 4
         const primerCaracter = id?.charAt(0);
         const idsEspeciales = ["2", "3", "4"];
 
-        let rutaFinal = "/CONTRATO-22.pdf"; // PDF por defecto
+        let rutaFinal = "/CONTRATO-22.pdf";
 
         if (idsEspeciales.includes(primerCaracter)) {
           console.log("ID detectado para Contrato 11");
-          rutaFinal = "/CONTRATO-11.pdf";
+          rutaFinal = "/CONTRATO-22.pdf";
         } else {
           console.log("Cargando contrato estándar 22");
+          rutaFinal = "/CONTRATO-11.pdf";
         }
 
-        // Simulación de carga (o puedes usar la API si ya está lista)
         setPdfUrl(rutaFinal);
       } catch (error) {
         console.error("Error al cargar:", error);
@@ -42,6 +40,74 @@ const Paso8VisualizarContrato = () => {
 
     cargarDocumento();
   }, [id]);
+
+  const obtenerUbicacion = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocalización no soportada por este navegador"));
+        return;
+      }
+
+      console.log("📍 Solicitando permisos de ubicación...");
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitud: position.coords.latitude,
+            longitud: position.coords.longitude,
+            precision: position.coords.accuracy,
+            timestamp: new Date().toISOString(),
+          };
+          console.log("✅ Ubicación obtenida:", coords);
+          resolve(coords);
+        },
+        (error) => {
+          console.error("❌ Error obteniendo ubicación:", error);
+          let mensajeError = "";
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              mensajeError =
+                "Permiso de ubicación denegado. Por favor, activa los permisos en tu navegador.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              mensajeError = "Información de ubicación no disponible.";
+              break;
+            case error.TIMEOUT:
+              mensajeError =
+                "Tiempo de espera agotado al obtener la ubicación.";
+              break;
+            default:
+              mensajeError = "Error desconocido al obtener la ubicación.";
+          }
+          reject(new Error(mensajeError));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    });
+  };
+
+  const handleAbrirModal = async () => {
+    setIsModalOpen(true);
+    setErrorUbicacion(null);
+
+    try {
+      const coords = await obtenerUbicacion();
+      setUbicacion(coords);
+    } catch (error) {
+      setErrorUbicacion(error.message);
+      console.error("No se pudo obtener la ubicación:", error);
+    }
+  };
+
+  const handleCerrarModal = () => {
+    setIsModalOpen(false);
+    setUbicacion(null);
+    setErrorUbicacion(null);
+  };
 
   if (cargando)
     return (
@@ -67,35 +133,21 @@ const Paso8VisualizarContrato = () => {
         </button>
       </div>
 
-      {/* VISUALIZADOR REFORZADO */}
+      {/* VISUALIZADOR */}
       <div style={{ flex: 1, backgroundColor: "#525659", overflow: "hidden" }}>
         {pdfUrl && (
-          <object
+          <iframe
             key={zoom}
-            data={`${pdfUrl}#toolbar=0&navpanes=0&zoom=${zoom}`}
+            src={`${pdfUrl}#toolbar=0&navpanes=0&zoom=${zoom}`}
             type="application/pdf"
-            style={{ width: "100%", height: "100%" }}
-          >
-            {/* Si el object falla, mostramos un link de respaldo */}
-            <div
-              style={{ color: "white", textAlign: "center", marginTop: "20%" }}
-            >
-              <p>No se pudo previsualizar el PDF.</p>
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#818cf8" }}
-              >
-                Click aquí para abrir el archivo directamente
-              </a>
-            </div>
-          </object>
+            style={{ width: "100%", height: "100%", border: "none" }}
+            title="Contrato PDF"
+          />
         )}
       </div>
 
       <div style={footerStyle}>
-        <button onClick={() => setIsModalOpen(true)} style={btnConfirmarStyle}>
+        <button onClick={handleAbrirModal} style={btnConfirmarStyle}>
           CONFIRMAR Y FIRMAR
         </button>
       </div>
@@ -104,14 +156,13 @@ const Paso8VisualizarContrato = () => {
       {isModalOpen && (
         <div className="modal-overlay" style={modalOverlayStyle}>
           <div className="modal-content" style={modalContentStyle}>
-            <button onClick={() => setIsModalOpen(false)} style={closeBtnStyle}>
+            <button onClick={handleCerrarModal} style={closeBtnStyle}>
               ✕
             </button>
             <FirmaDoc
               referencia={id}
-              nombreUsuario="Usuario de Prueba"
-              correoUsuario="prueba@dominio.com"
-              onCerrar={() => setIsModalOpen(false)}
+              ubicacion={ubicacion}
+              onCerrar={handleCerrarModal}
             />
           </div>
         </div>
@@ -120,7 +171,7 @@ const Paso8VisualizarContrato = () => {
   );
 };
 
-// Estilos necesarios para que el modal no falle
+// Estilos
 const toolbarStyle = {
   display: "flex",
   justifyContent: "center",
@@ -163,6 +214,8 @@ const modalContentStyle = {
   width: "90%",
   maxWidth: "500px",
   position: "relative",
+  maxHeight: "90vh",
+  overflowY: "auto",
 };
 const closeBtnStyle = {
   position: "absolute",

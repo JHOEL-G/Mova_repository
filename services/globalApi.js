@@ -27,7 +27,6 @@ const apiServicios = axios.create({
       );
       if (config.data) {
         const preview = JSON.stringify(config.data, null, 2).substring(0);
-        console.log("📦 Payload preview:", preview);
       }
       return config;
     },
@@ -115,10 +114,9 @@ export const globalApi = {
     base64Selfie,
     referenciaId = "temp_ref"
   ) => {
-    // ⭐ NO limpiar el base64, enviarlo tal cual viene (CON prefijo)
     const payload = {
-      credencial: base64IneFrontal, // CON prefijo data:image/jpeg;base64,
-      captura: base64Selfie, // CON prefijo data:image/jpeg;base64,
+      credencial: base64IneFrontal,
+      captura: base64Selfie,
       referenciaId: String(referenciaId),
     };
 
@@ -169,158 +167,171 @@ export const globalApi = {
 
   obtenerDocumentoContrato: async (referencia) => {
     const cleanRef = referencia.trim();
-    // Importante: Si la referencia es "2-44CF...", el charAt(0) es "2"
     const tipoId = cleanRef.charAt(0);
 
-    console.log("🚀 Petición limpia a /Solicitud/contrato/documento");
-    console.log("🚀 Headers:", {
-      referencia: cleanRef,
-      validacionTipoId: tipoId,
-    });
+    try {
+      const response = await apiNegocio.get("/Solicitud/contrato/documento", {
+        headers: {
+          referencia: cleanRef,
+          validacionTipoId: tipoId,
+        },
+      });
 
-    return apiNegocio.get("/Solicitud/contrato/documento", {
-      // <-- SIN el /api/ inicial
-      responseType: "blob",
-      headers: {
-        // Asegúrate de usar minúsculas si el servidor es sensible,
-        // tu proxy en vite.config ya está buscando 'referencia' en minúsculas.
-        referencia: cleanRef,
-        validacionTipoId: tipoId,
-        Accept: "application/pdf",
-      },
-    });
+      // Retornamos los datos directamente
+      // 'data' será null porque NO hay un archivo binario en la respuesta
+      return {
+        data: null,
+        metadata: response.data,
+        soloDatos: true,
+      };
+    } catch (error) {
+      console.error("❌ Error en GET contrato:", error.message);
+      throw error;
+    }
   },
 
-  obtenerInfoContrato: async (referencia) => {
-    return apiNegocio.get(`/Solicitud/contrato/${referencia}`);
-  },
+  firmarDocumento: async (datos) => {
+    // 1. Validar presencia de datos críticos para evitar el 400
+    const nombreValido = datos.nombre || "Nombre no proporcionado";
+    const correoValido = datos.correo || "correo@ejemplo.com";
 
-  firmarDocumento: async ({
-    referenciaId,
-    pdfBase64,
-    nombre,
-    correo,
-    firmaImagenBase64,
-    coordenadas = [0],
-  }) => {
+    console.log("\n🔍 === VALIDACIÓN PRE-ENVÍO ===");
+    console.log("- Nombre enviado:", nombreValido);
+    console.log("- Correo enviado:", correoValido);
+
+    // 2. Construir el payload respetando el esquema de la imagen
     const payload = {
-      referenciaId: referenciaId,
-      pdfDocBase64: pdfBase64,
+      referenciaId: String(datos.referenciaId),
+      pdfDocBase64: datos.pdfBase64, // Asegúrate que este nombre coincida con tu Swagger
       firmantes: [
         {
-          nombreCompleto: nombre,
-          correoElectronico: correo,
+          nombreCompleto: nombreValido,
+          correoElectronico: correoValido,
           firma: {
-            imagen: firmaImagenBase64,
-            ubicacion: coordenadas, // El swagger indica un array de números
+            imagen: datos.firmaImagenBase64,
+            ubicacion: datos.coordenadas, // Debe ser el Array [1, 110, 220, 200, 60]
           },
         },
       ],
     };
 
-    console.log("✍️ Enviando documento a firmar:", {
-      referenciaId,
-      nombre,
-      ubicacion: coordenadas,
-    });
-
     try {
-      // Usamos apiServicios que apunta a /api-servicios
       const response = await apiServicios.post(
         "/signDocument/firmarDocumentoNom151",
         payload
       );
       return response.data;
     } catch (error) {
+      // Log detallado para depurar la validación del servidor
       console.error(
-        "❌ Error en firmarDocumento:",
-        error.response?.data || error.message
+        "❌ Error 400 - Detalles de validación:",
+        error.response?.data
       );
       throw error;
     }
   },
 
-  obtenerUrlContratoFinal: async (referencia, datosFirma) => {
-    const cleanRef = referencia.trim();
-    const tipoId = parseInt(cleanRef.charAt(0)) || 0;
-    const ID_USUARIO_SISTEMA = 1;
-
-    console.log("🚀 DATOS DE LA PETICIÓN:");
-    console.log("   Headers:", {
-      usuarioId: ID_USUARIO_SISTEMA,
-      validacionTipoId: tipoId,
-      referencia: cleanRef,
-    });
-    console.log("   Payload:", JSON.stringify(datosFirma, null, 2));
-
-    try {
-      const response = await apiNegocio.post(
-        "/Cliente/contrato/registro",
-        datosFirma,
-        {
-          headers: {
-            usuarioId: ID_USUARIO_SISTEMA,
-            validacionTipoId: tipoId,
-            referencia: cleanRef,
-          },
-        }
-      );
-      return response.data;
-    } catch (error) {
-      console.error("❌ Error 500 en Servidor:", error.response?.data);
-      throw error;
-    }
-  },
-
-  registrarBiometricos: async (data, referencia) => {
-    const ref = referencia || "";
-
-    console.log("🔍 DEBUGGING REGISTRO BIOMÉTRICO:");
-    console.log("   📋 Referencia (header):", ref);
-    console.log("   📋 Campos del payload:", Object.keys(data));
-    console.log("   📋 Tamaños:");
-    console.log("     - ocrResponse:", data.ocrResponse?.length, "chars");
-    console.log(
-      "     - biometricoResponse:",
-      data.biometricoResponse?.length,
-      "chars"
-    );
-    console.log("     - ineAnversoPath:", data.ineAnversoPath?.length, "chars");
-    console.log("     - ineReversoPath:", data.ineReversoPath?.length, "chars");
-    console.log("     - clientePath:", data.clientePath?.length, "chars");
-    console.log("   📋 Primeros 10 chars:");
-    console.log(
-      "     - ineAnversoPath:",
-      data.ineAnversoPath?.substring(0, 10)
-    );
-    console.log("     - clientePath:", data.clientePath?.substring(0, 10));
-
+  registrarBiometricos: async (datos, referencia) => {
     try {
       const response = await apiNegocio.post(
         "/Cliente/biometricos/registro",
-        data,
+        datos,
         {
           headers: {
             "Content-Type": "application/json",
-            usuarioId: 1,
-            validacionTipoId: parseInt(ref.charAt(0)) || 1,
-            referencia: ref,
+            usuarioId: "1",
+            validacionTipoId: "1",
+            referencia: String(referencia),
+            referenciaId: String(referencia),
           },
         }
       );
-
       console.log("✅ Registro exitoso:", response.data);
-      return response;
+      return response.data;
     } catch (error) {
-      console.error("❌ ERROR EN REGISTRO:");
-      console.error("   Status:", error.response?.status);
-      console.error("   Data:", error.response?.data);
+      return error;
+    }
+  },
 
-      if (error.response?.data?.errors) {
-        console.error("   📛 Errores de validación:");
-        Object.entries(error.response.data.errors).forEach(([campo, msgs]) => {
-          console.error(`     • ${campo}:`, msgs);
-        });
+  obtenerUrlContratoFinal: async (referencia, payloadRegistro) => {
+    try {
+      console.log("📤 === INICIO DEBUG PAYLOAD REGISTRO ===");
+      console.log("🔍 Referencia:", referencia);
+      console.log("🔍 Tipo de referencia:", typeof referencia);
+      console.log(
+        "🔍 Primer carácter (validacionTipoId):",
+        referencia.charAt(0)
+      );
+
+      console.log("\n📦 PAYLOAD COMPLETO:");
+      console.log(JSON.stringify(payloadRegistro, null, 2));
+
+      console.log("\n📊 TAMAÑOS:");
+      console.log("- latitud:", payloadRegistro.latitud);
+      console.log("- logitud:", payloadRegistro.logitud);
+      console.log("- firma length:", payloadRegistro.firma?.length || 0);
+      console.log(
+        "- firmaPath length:",
+        payloadRegistro.firmaPath?.length || 0
+      );
+      console.log("- certificaDocumento:", payloadRegistro.certificaDocumento);
+      console.log("- firmantesRestantes:", payloadRegistro.firmantesRestantes);
+
+      console.log("\n🔍 CONTRATO FIRMA:");
+      console.log("- error:", payloadRegistro.contratoFirma?.error);
+      console.log("- resultado:", payloadRegistro.contratoFirma?.resultado);
+      console.log(
+        "- data array length:",
+        payloadRegistro.contratoFirma?.data?.length || 0
+      );
+
+      if (payloadRegistro.contratoFirma?.data?.[0]) {
+        const data0 = payloadRegistro.contratoFirma.data[0];
+        console.log("\n📋 DATA[0]:");
+        console.log("- claveMensaje:", data0.claveMensaje);
+        console.log("- codigoValidacion:", data0.codigoValidacion);
+        console.log("- estatus:", data0.estatus);
+        console.log("- hash:", data0.hash);
+        console.log("- nom151:", data0.nom151);
+        console.log("- pdfFirmado length:", data0.pdfFirmado?.length || 0);
+        console.log(
+          "- representacionVisual length:",
+          data0.representacionVisual?.length || 0
+        );
+      }
+
+      console.log("\n📤 === FIN DEBUG PAYLOAD ===\n");
+
+      // ✅ HEADERS COMPLETOS (revisa qué headers usas en Postman)
+      const headers = {
+        "Content-Type": "application/json",
+        referencia: "1-3C5F9EBC-4FE3-F011-B513-000C29AC7C09",
+        usuarioId: "1", // ⚠️ Verifica si este valor es correcto
+        validacionTipoId: String(referencia.charAt(0)),
+        // ✅ Agrega cualquier otro header que uses en Postman
+        // Por ejemplo, si tienes un token de autenticación:
+        // "Authorization": "Bearer YOUR_TOKEN",
+      };
+
+      console.log("\n📤 HEADERS ENVIADOS:", headers);
+
+      const response = await apiNegocio.post(
+        "/Cliente/contrato/registro",
+        payloadRegistro,
+        { headers }
+      );
+
+      console.log("✅ Registro de contrato exitoso:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error en registro de contrato:", error.response?.data);
+
+      if (error.response?.data) {
+        console.error("\n🔴 DETALLES DEL ERROR 500:");
+        console.error("- Status:", error.response.status);
+        console.error("- Error code:", error.response.data.error);
+        console.error("- Resultado:", error.response.data.resultado);
+        console.error("- Data:", error.response.data.data);
       }
 
       throw error;

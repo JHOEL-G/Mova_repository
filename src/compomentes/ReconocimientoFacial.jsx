@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Camera, Loader2, CheckCircle, RotateCcw } from "lucide-react";
 import { globalApi } from "../../services/globalApi";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { data, useLocation, useNavigate, useParams } from "react-router";
 
 export default function ReconocimientoFacial() {
   const [step, setStep] = useState(1);
@@ -106,6 +106,32 @@ export default function ReconocimientoFacial() {
     }
   };
 
+  const redimensionarYConvertirAPNG = (base64Str) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Bajamos a 600px, suficiente para reconocimiento facial
+        const MAX_WIDTH = 600;
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Usamos JPEG internamente con calidad 0.6 para bajar el peso drásticamente,
+        // pero devolvemos el string base64.
+        // Si el servidor EXIGE que el header diga png, lo cambiamos después.
+        const comprimida = canvas.toDataURL("image/jpeg", 0.6);
+        const base64Final = comprimida.replace("image/jpeg", "image/png");
+
+        resolve(base64Final);
+      };
+    });
+  };
+
   const handleGallerySelfie = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -127,12 +153,6 @@ export default function ReconocimientoFacial() {
     setIsProcessing(true);
 
     try {
-      console.log(
-        "🔍 fotoIneFrontal formato:",
-        fotoIneFrontal?.substring(0, 30)
-      );
-      console.log("🔍 selfieData formato:", selfieData?.substring(0, 30));
-
       // 1. Validar con biometría
       const resultado = await globalApi.validarIneSelfie(
         fotoIneFrontal,
@@ -140,84 +160,69 @@ export default function ReconocimientoFacial() {
         id
       );
 
+      // Verificamos si la validación biométrica fue exitosa
       if (resultado.error !== 0) {
-        alert(`Error: ${resultado.resultado || "No se pudo validar"}`);
-        setStep(1);
-        return;
-      }
-
-      const validacionData = resultado.data?.[0];
-      const reversoBase64 = localStorage.getItem(`fotoIneReverso_${id}`);
-
-      // ⭐ AJUSTADO: Enviar SOLO los datos relevantes en los campos JSON
-      const datosRegistro = {
-        ocrResponse: JSON.stringify({
-          codigoValidacion: validacionData.codigoValidacion,
-          estatus: validacionData.estatus,
-          mensaje: validacionData.mensaje,
-          similitud: validacionData.similitud,
-        }),
-        biometricoResponse: JSON.stringify({
-          codigoValidacion: validacionData.codigoValidacion,
-          estatus: validacionData.estatus,
-          mensaje: validacionData.mensaje,
-          similitud: validacionData.similitud,
-        }),
-        ineAnversoPath: fotoIneFrontal,
-        ineReversoPath: reversoBase64 || "",
-        clientePath: selfieData,
-      };
-
-      console.log("📤 Payload ajustado:", {
-        campos: Object.keys(datosRegistro),
-        ocrResponsePreview: datosRegistro.ocrResponse.substring(0, 100),
-        biometricoResponsePreview: datosRegistro.biometricoResponse.substring(
-          0,
-          100
-        ),
-      });
-
-      // 3. Enviar al registro
-      const registroResponse = await globalApi.registrarBiometricos(
-        datosRegistro,
-        id
-      );
-
-      if (registroResponse.data.error !== 0) {
         alert(
-          `Error: ${registroResponse.data.resultado || "Fallo en registro"}`
+          `Error en biometría: ${resultado.resultado || "No se pudo validar"}`
         );
         setStep(1);
         return;
       }
 
-      // 4. Éxito
+      const validacionData = resultado.data?.[0] || {};
+      const reversoBase64 = localStorage.getItem(`fotoIneReverso_${id}`);
+
+      // --- IMPORTANTE: Recuperar el OCR completo del paso anterior ---
+      // Asegúrate de que en el componente de la INE Frontal guardaste el JSON de Adriana así:
+      // localStorage.setItem(`ocrData_${id}`, JSON.stringify(respuestaDelServicioOCR));
+
+      console.log("Compimiendo imágenes...");
+      const anversoPng = await redimensionarYConvertirAPNG(fotoIneFrontal);
+      const reversoPng = reversoBase64
+        ? await redimensionarYConvertirAPNG(reversoBase64)
+        : "";
+      const selfiePng = await redimensionarYConvertirAPNG(selfieData);
+      const ocrAlmacenado = localStorage.getItem(`ocrData_${id}`);
+
+      // 2. Construir el Body con los JSON completos como strings
+      const datosRegistro = {
+        // Enviamos el JSON de Adriana completo que recuperamos del storage
+        ocrResponse: ocrAlmacenado,
+
+        // Enviamos el objeto 'resultado' completo de biometría serializado
+        biometricoResponse: JSON.stringify(resultado),
+
+        ineAnversoPath: anversoPng,
+        ineReversoPath: reversoPng,
+        clientePath: selfiePng,
+      };
+
+      // LOG PARA VERIFICAR ANTES DE ENVIAR
+      console.log("🚀 BODY FINAL A ENVIAR:", datosRegistro);
+
+      console.log("📤 Payload optimizado:", {
+        anversoSize: datosRegistro.ineAnversoPath.length,
+        selfieSize: datosRegistro.clientePath.length,
+        ocrLength: datosRegistro.ocrResponse?.length || 0,
+      });
+
+      // 3. Enviar al registro final
+      const registroResponse = await globalApi.registrarBiometricos(
+        datosRegistro,
+        id
+      );
+
       setRecognitionScore(validacionData.similitud?.toFixed(2) || 0);
       setRecognitionMessage(validacionData.mensaje || "Validación completada");
       setStep(5);
     } catch (error) {
       console.error("❌ Error en el proceso:", error);
-      console.log("📛 Respuesta completa del servidor:", error.response?.data);
-
-      let errorMsg = "Error de comunicación con el servidor";
-
-      if (error.response?.data) {
-        if (error.response.data.errors) {
-          const errores = Object.entries(error.response.data.errors)
-            .map(([campo, msgs]) => `• ${campo}: ${msgs.join(", ")}`)
-            .join("\n");
-          errorMsg = `Errores de validación:\n${errores}`;
-        } else {
-          errorMsg =
-            error.response.data.resultado ||
-            error.response.data.mensaje ||
-            error.response.data.title ||
-            JSON.stringify(error.response.data);
-        }
+      // Log detallado de la respuesta del servidor en caso de 400
+      if (error.response) {
+        console.log("Detalle 400 del servidor:", error.response.data);
       }
-
-      console.error("📛 Detalle del error:", errorMsg);
-      alert(`Error:\n${errorMsg}`);
+      const errorServidor = error.response?.data?.resultado || error.message;
+      alert(`Error de Registro:\n${errorServidor}`);
       setStep(1);
     } finally {
       setIsProcessing(false);

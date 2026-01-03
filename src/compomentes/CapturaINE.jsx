@@ -35,9 +35,10 @@ export default function CapturaINE() {
     // CÁMARA TRASERA POR DEFECTO
     const constraints = {
       video: {
-        facingMode: { ideal: "environment" }, // Cámara trasera
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 }, // Pedimos resolución alta para mejor nitidez
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 1.7777777778 }, // Forzamos 16:9 que es lo estándar
       },
     };
 
@@ -202,6 +203,7 @@ export default function CapturaINE() {
       );
 
       console.log("OCR exitoso:", resultado);
+      localStorage.setItem(`ocrData_${id}`, JSON.stringify(resultado));
       setStep(5);
     } catch (err) {
       console.error("Error en OCR:", err);
@@ -277,23 +279,22 @@ export default function CapturaINE() {
               Coloca la INE en el centro, bien iluminada y sin reflejos.
             </p>
 
-            {/* ⭐ CAMBIOS AQUÍ */}
             <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 aspect-[4/3]">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover" // ⬅️ CAMBIADO de object-contain a object-cover
                 style={{
-                  transform: "scaleX(1)", // Mantén la orientación original
+                  transform: "scaleX(1)",
                 }}
               />
               <canvas ref={canvasRef} className="hidden" />
 
-              {/* Guía visual opcional para centrar la INE */}
+              {/* Guía visual: Asegúrate de que destaque sobre el video */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="border-4 border-white/50 rounded-2xl w-[85%] h-[60%]" />
+                <div className="border-4 border-white/70 rounded-2xl w-[85%] h-[60%] shadow-[0_0_0_1000px_rgba(0,0,0,0.3)]" />
               </div>
             </div>
 
