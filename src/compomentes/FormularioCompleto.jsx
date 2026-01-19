@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { globalApi } from "../../services/globalApi";
 import { useNavigate, useParams } from "react-router";
+import { useFlow } from "./FlowContext";
+
 
 export default function FormularioCompleto() {
   const { id } = useParams();
@@ -20,6 +22,8 @@ export default function FormularioCompleto() {
   const [listaParentescos, setListaParentescos] = useState([]);
   const [listaBancos, setListaBancos] = useState([]);
   const [erroresValidacion, setErroresValidacion] = useState([]); // ← AGREGAR ESTA LÍNEA
+  const { markStepComplete } = useFlow();
+
 
   const [formData, setFormData] = useState({
     calle: "",
@@ -40,20 +44,13 @@ export default function FormularioCompleto() {
     banco: "",
     numeroTarjeta: "",
     confirmarTarjeta: "",
+    transferencia: true,
+    retiroSinTarjeta: false,
   });
 
   const [referencias, setReferencias] = useState([
     {
       id: 1,
-      nombre: "",
-      apellidoPaterno: "",
-      apellidoMaterno: "",
-      telefono: "",
-      parentesco: "",
-      tiempoConocido: "",
-    },
-    {
-      id: 2,
       nombre: "",
       apellidoPaterno: "",
       apellidoMaterno: "",
@@ -306,19 +303,15 @@ export default function FormularioCompleto() {
               : 2001,
         },
         referencia: id,
+        transferencia: formData.datosBancarios === "debito",
+        retiroSinTarjeta: formData.datosBancarios === "sin_tarjeta",
       };
-
-      console.log("📦 Payload Final validado:", payloadFinal);
-      console.log(
-        "📦 Payload como JSON:",
-        JSON.stringify(payloadFinal, null, 2)
-      );
 
       const response = await globalApi.registrarFormulario(payloadFinal);
 
-      console.log("✅ Respuesta del servidor:", response.data);
 
       if (response.data?.error === 0) {
+        markStepComplete(id, "formulario");
         alert("¡Registro exitoso!");
         navigate(`/captura-ine/${id}`);
       } else {
@@ -336,8 +329,7 @@ export default function FormularioCompleto() {
         const mensajesError = Object.entries(errores)
           .map(
             ([campo, mensajes]) =>
-              `• ${campo}: ${
-                Array.isArray(mensajes) ? mensajes.join(", ") : mensajes
+              `• ${campo}: ${Array.isArray(mensajes) ? mensajes.join(", ") : mensajes
               }`
           )
           .join("\n");
@@ -354,11 +346,8 @@ export default function FormularioCompleto() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <header className="bg-white px-6 py-4 flex items-center justify-between border-b shadow-sm sticky top-0 z-20">
-        <div className="text-orange-500 text-2xl font-bold italic">
-          m~
-          <span className="text-slate-800 not-italic font-semibold ml-1">
-            mova
-          </span>
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="Logo Mova" className="h-8 w-auto" />
         </div>
         <span className="text-slate-400 text-xs font-mono">v 1.24.23.0</span>
       </header>
@@ -567,7 +556,6 @@ export default function FormularioCompleto() {
                     if (val.length <= 10) handleInputChange(e);
                   }}
                   maxLength={10}
-                  placeholder="10 dígitos sin formato"
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg"
                 />
               </div>
@@ -607,30 +595,43 @@ export default function FormularioCompleto() {
                   Referencias
                 </h2>
               </div>
+
+              {/* Botón con límite de 2 referencias */}
               <button
-                onClick={() =>
-                  addItem(setReferencias, {
-                    nombre: "",
-                    apellidoPaterno: "",
-                    apellidoMaterno: "",
-                    telefono: "",
-                    parentescoId: "",
-                    tiempoConocido: "0",
-                  })
+                onClick={() => {
+                  if (referencias.length < 2) {
+                    addItem(setReferencias, {
+                      nombre: "",
+                      apellidoPaterno: "",
+                      apellidoMaterno: "",
+                      telefono: "",
+                      parentescoId: "",
+                      tiempoConocido: "", // Cambiado a string vacío para la fecha
+                    });
+                  }
+                }}
+                disabled={referencias.length >= 2}
+                className={`p-1 rounded-full transition-colors ${referencias.length >= 2
+                  ? "text-slate-300 cursor-not-allowed"
+                  : "hover:bg-indigo-100 text-indigo-600"
+                  }`}
+                title={
+                  referencias.length >= 2
+                    ? "Máximo 2 referencias permitidas"
+                    : "Agregar referencia"
                 }
-                className="p-1 hover:bg-indigo-100 rounded-full text-indigo-600 transition-colors"
               >
                 <Plus size={20} />
               </button>
             </div>
 
             <div className="p-6 space-y-6">
-              {" "}
-              {/* Aumenté el espacio entre referencias */}
               {referencias.map((ref, index) => (
-                <div key={ref.id} className="relative pb-4 last:pb-0">
-                  {" "}
-                  {/* Eliminado el borde y fondo gris de aquí */}
+                <div
+                  key={ref.id}
+                  className="relative pb-4 last:pb-0 border-b last:border-0 border-slate-100"
+                >
+                  {/* MODIFICACIÓN: Solo muestra el botón eliminar si hay más de 1 referencia */}
                   {referencias.length > 1 && (
                     <button
                       onClick={() =>
@@ -638,14 +639,16 @@ export default function FormularioCompleto() {
                           prev.filter((r) => r.id !== ref.id)
                         )
                       }
-                      className="absolute top-0 right-0 text-slate-400 hover:text-red-500"
+                      className="absolute top-0 right-0 text-slate-400 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={16} />
                     </button>
                   )}
+
                   <p className="text-[10px] font-bold text-indigo-400 uppercase mb-3">
                     Referencia {index + 1}
                   </p>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input
                       type="text"
@@ -706,20 +709,26 @@ export default function FormularioCompleto() {
                           );
                         }}
                       />
-                      <input
-                        type="number"
-                        placeholder="Años conocido"
-                        className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
-                        value={ref.tiempoConocido}
-                        onChange={(e) =>
-                          handleDynamicChange(
-                            setReferencias,
-                            ref.id,
-                            "tiempoConocido",
-                            e.target.value
-                          )
-                        }
-                      />
+
+                      {/* MODIFICACIÓN: Tipo date para fecha de conocimiento */}
+                      <div className="flex flex-col">
+                        <label className="text-[10px] text-slate-400 ml-2">
+                          Conocido desde:
+                        </label>
+                        <input
+                          type="date"
+                          className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
+                          value={ref.tiempoConocido}
+                          onChange={(e) =>
+                            handleDynamicChange(
+                              setReferencias,
+                              ref.id,
+                              "tiempoConocido",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                     <select
                       className="w-full p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
@@ -768,28 +777,70 @@ export default function FormularioCompleto() {
                   Beneficiarios
                 </h2>
               </div>
-              <button
-                onClick={() =>
-                  addItem(setBeneficiarios, {
-                    nombre: "",
-                    apellidoPaterno: "",
-                    apellidoMaterno: "",
-                    parentesco: "",
-                    porcentaje: "100",
-                    fechaNacimiento: "",
-                  })
-                }
-                className="p-1 hover:bg-indigo-100 rounded-full text-indigo-600 transition-colors"
-              >
-                <Plus size={20} />
-              </button>
+              {/* Solo permitir agregar beneficiarios si el porcentaje total es menor a 100% */}
+              {(() => {
+                const porcentajeTotal = beneficiarios.reduce(
+                  (sum, ben) => sum + (parseFloat(ben.porcentaje) || 0),
+                  0
+                );
+                return porcentajeTotal < 100 ? (
+                  <button
+                    onClick={() =>
+                      addItem(setBeneficiarios, {
+                        nombre: "",
+                        apellidoPaterno: "",
+                        apellidoMaterno: "",
+                        parentesco: "",
+                        porcentaje: "",
+                        fechaNacimiento: "",
+                      })
+                    }
+                    className="p-1 hover:bg-indigo-100 rounded-full text-indigo-600 transition-colors"
+                  >
+                    <Plus size={20} />
+                  </button>
+                ) : null;
+              })()}
             </div>
 
             <div className="p-6 space-y-6">
+              {/* Mensaje de información sobre el porcentaje */}
+              {(() => {
+                const porcentajeTotal = beneficiarios.reduce(
+                  (sum, ben) => sum + (parseFloat(ben.porcentaje) || 0),
+                  0
+                );
+                return (
+                  <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <span className="font-semibold">
+                      Porcentaje total asignado:
+                    </span>{" "}
+                    <span
+                      className={`font-bold ${porcentajeTotal > 100
+                        ? "text-red-600"
+                        : porcentajeTotal === 100
+                          ? "text-green-600"
+                          : "text-indigo-600"
+                        }`}
+                    >
+                      {porcentajeTotal}%
+                    </span>
+                    {porcentajeTotal > 100 && (
+                      <span className="text-red-600 ml-2">
+                        ⚠️ El total no puede superar el 100%
+                      </span>
+                    )}
+                    {porcentajeTotal === 100 && (
+                      <span className="text-green-600 ml-2">
+                        ✓ Porcentaje completo
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
               {beneficiarios.map((ben, index) => (
                 <div key={ben.id} className="relative pb-4 last:pb-0">
-                  {" "}
-                  {/* Eliminado el borde y fondo azul de aquí */}
                   <p className="text-[10px] font-bold text-indigo-400 uppercase mb-3">
                     Beneficiario {index + 1}
                   </p>
@@ -810,7 +861,7 @@ export default function FormularioCompleto() {
                     />
                     <input
                       type="text"
-                      placeholder="Apellido Paterno *"
+                      placeholder="Apellidos *"
                       className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent"
                       value={ben.apellidoPaterno}
                       onChange={(e) =>
@@ -858,34 +909,121 @@ export default function FormularioCompleto() {
                           ))}
                       </select>
                     </div>
-                    <input
-                      type="date"
-                      className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
-                      value={ben.fechaNacimiento}
-                      onChange={(e) =>
-                        handleDynamicChange(
-                          setBeneficiarios,
-                          ben.id,
-                          "fechaNacimiento",
-                          e.target.value
-                        )
-                      }
-                    />
-                    <input
-                      type="number"
-                      placeholder="Porcentaje %"
-                      className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent"
-                      value={ben.porcentaje}
-                      onChange={(e) =>
-                        handleDynamicChange(
-                          setBeneficiarios,
-                          ben.id,
-                          "porcentaje",
-                          e.target.value
-                        )
-                      }
-                    />
+
+                    {/* Campo de fecha de nacimiento con etiqueta */}
+                    <div className="flex flex-col">
+                      <label className="text-xs text-slate-500 mb-1">
+                        Fecha de Nacimiento
+                      </label>
+                      <input
+                        type="date"
+                        className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
+                        value={ben.fechaNacimiento}
+                        onChange={(e) =>
+                          handleDynamicChange(
+                            setBeneficiarios,
+                            ben.id,
+                            "fechaNacimiento",
+                            e.target.value
+                          )
+                        }
+                      />
+                    </div>
+
+                    {/* Campo de porcentaje con validación */}
+                    <div className="flex flex-col">
+                      <input
+                        type="number"
+                        placeholder="Porcentaje % *"
+                        min="0"
+                        max="100"
+                        className="p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent"
+                        value={ben.porcentaje}
+                        onChange={(e) => {
+                          const valor = parseFloat(e.target.value) || 0;
+                          const porcentajeActualTotal = beneficiarios.reduce(
+                            (sum, b) =>
+                              b.id === ben.id
+                                ? sum
+                                : sum + (parseFloat(b.porcentaje) || 0),
+                            0
+                          );
+
+                          // Validar que el total no supere 100%
+                          if (porcentajeActualTotal + valor <= 100) {
+                            handleDynamicChange(
+                              setBeneficiarios,
+                              ben.id,
+                              "porcentaje",
+                              e.target.value
+                            );
+                          } else {
+                            // Asignar el máximo permitido
+                            const maxPermitido = 100 - porcentajeActualTotal;
+                            handleDynamicChange(
+                              setBeneficiarios,
+                              ben.id,
+                              "porcentaje",
+                              maxPermitido.toString()
+                            );
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Validación adicional al salir del campo
+                          const valor = parseFloat(e.target.value);
+                          if (valor < 0) {
+                            handleDynamicChange(
+                              setBeneficiarios,
+                              ben.id,
+                              "porcentaje",
+                              "0"
+                            );
+                          } else if (valor > 100) {
+                            handleDynamicChange(
+                              setBeneficiarios,
+                              ben.id,
+                              "porcentaje",
+                              "100"
+                            );
+                          }
+                        }}
+                      />
+                      {(() => {
+                        const porcentajeTotal = beneficiarios.reduce(
+                          (sum, b) => sum + (parseFloat(b.porcentaje) || 0),
+                          0
+                        );
+                        const porcentajeActual =
+                          parseFloat(ben.porcentaje) || 0;
+                        const porcentajeOtros =
+                          porcentajeTotal - porcentajeActual;
+                        const disponible = 100 - porcentajeOtros;
+
+                        if (disponible < 100 && disponible > 0) {
+                          return (
+                            <span className="text-xs text-slate-500 mt-1">
+                              Disponible: {disponible}%
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
+
+                  {/* Botón para eliminar beneficiario */}
+                  {beneficiarios.length > 1 && (
+                    <button
+                      onClick={() =>
+                        setBeneficiarios((prev) =>
+                          prev.filter((b) => b.id !== ben.id)
+                        )
+                      }
+                      className="absolute top-0 right-0 text-red-500 hover:text-red-700 text-xs"
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -901,32 +1039,39 @@ export default function FormularioCompleto() {
             </div>
 
             {/* Selección de Tipo de Cobro */}
-            <div className="flex gap-6 mb-6">
-              <label className="flex items-center gap-2 cursor-pointer group">
+            <div className="flex gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "debito"
+                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                  : "bg-white text-slate-600 border-slate-200"
+                  }`}
+              >
                 <input
                   type="radio"
                   name="datosBancarios"
                   value="debito"
+                  className="hidden"
                   checked={formData.datosBancarios === "debito"}
                   onChange={handleInputChange}
-                  className="w-4 h-4 text-indigo-600"
                 />
-                <span className="text-sm text-slate-600 group-hover:text-indigo-600 font-medium">
-                  Tarjeta de débito
-                </span>
+                <span className="text-sm font-bold">CON TARJETA</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer group">
+
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "sin_tarjeta"
+                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                  : "bg-white text-slate-600 border-slate-200"
+                  }`}
+              >
                 <input
                   type="radio"
                   name="datosBancarios"
                   value="sin_tarjeta"
+                  className="hidden"
                   checked={formData.datosBancarios === "sin_tarjeta"}
                   onChange={handleInputChange}
-                  className="w-4 h-4 text-indigo-600"
                 />
-                <span className="text-sm text-slate-600 group-hover:text-indigo-600 font-medium">
-                  Retiro sin tarjeta
-                </span>
+                <span className="text-sm font-bold">RETIRO SIN TARJETA</span>
               </label>
             </div>
 
@@ -995,7 +1140,6 @@ export default function FormularioCompleto() {
                   </div>
                 </div>
 
-                {/* Alerta visual si no coinciden (opcional) */}
                 {formData.numeroTarjeta &&
                   formData.confirmarTarjeta &&
                   formData.numeroTarjeta !== formData.confirmarTarjeta && (
@@ -1011,11 +1155,10 @@ export default function FormularioCompleto() {
             <button
               onClick={handleSubmit}
               disabled={cargando}
-              className={`px-8 py-3 rounded-xl font-bold text-white transition-all shadow-lg ${
-                cargando
-                  ? "bg-slate-400 cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 active:scale-95"
-              }`}
+              className={`px-8 py-3 rounded-xl font-bold text-white transition-all shadow-lg ${cargando
+                ? "bg-slate-400 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-700 active:scale-95"
+                }`}
             >
               {cargando ? "Enviando..." : "Continuar registro"}
             </button>

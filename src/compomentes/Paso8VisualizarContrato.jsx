@@ -1,154 +1,145 @@
-/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router";
 import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
+import { globalApi } from "../../services/globalApi";
 import FirmaDoc from "./FirmaDoc";
 
-// Configurar el worker de PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configuración del worker - VERSIÓN FIJA
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs`;
+import { useFlow } from "./FlowContext";
+
 
 const Paso8VisualizarContrato = () => {
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfBase64, setPdfBase64] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [numPages, setNumPages] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ubicacion, setUbicacion] = useState(null);
-  const [errorUbicacion, setErrorUbicacion] = useState(null);
+  const { markStepComplete } = useFlow();
+
   const { id } = useParams();
 
   useEffect(() => {
-    const cargarDocumento = async () => {
-      try {
-        setCargando(true);
-
-        const primerCaracter = id?.charAt(0);
-        const idsEspeciales = ["2", "3", "4"];
-
-        let rutaFinal = "/CONTRATO-22.pdf";
-
-        if (idsEspeciales.includes(primerCaracter)) {
-          console.log("ID detectado para Contrato 22");
-          rutaFinal = "/CONTRATO-22.pdf";
-        } else {
-          console.log("Cargando contrato estándar 11");
-          rutaFinal = "/CONTRATO-11.pdf";
-        }
-
-        setPdfUrl(rutaFinal);
-      } catch (error) {
-        console.error("Error al cargar:", error);
-      } finally {
-        setCargando(false);
-      }
-    };
-
-    cargarDocumento();
+    descargarContratoReal();
   }, [id]);
+
+  const descargarContratoReal = async () => {
+    try {
+      setCargando(true);
+
+      const respuesta = await globalApi.obtenerPdfContrato(id);
+
+      // 1. Extraer el string específicamente de la propiedad .doc
+      // Según tu consola, el base64 está en respuesta.doc
+      let base64String = "";
+
+      if (respuesta && respuesta.doc) {
+        base64String = respuesta.doc;
+      } else if (typeof respuesta === 'string') {
+        base64String = respuesta;
+      }
+
+      if (!base64String) {
+        throw new Error("No se encontró el contenido del PDF en la respuesta");
+      }
+
+      // 2. Limpieza del base64
+      let base64Limpio = base64String.trim();
+
+      // Eliminar prefijo si existe
+      if (base64Limpio.startsWith("data:application/pdf;base64,")) {
+        base64Limpio = base64Limpio.substring(28);
+      }
+
+      // Limpiar espacios y saltos de línea
+      base64Limpio = base64Limpio.replace(/[\s\r\n]/g, "");
+
+      setPdfBase64(base64Limpio);
+
+      // 3. Conversión a blob (esto se mantiene igual)
+      const byteCharacters = atob(base64Limpio);
+      const byteNumbers = new Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "application/pdf" });
+
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+
+    } catch (error) {
+      console.error("❌ Error al procesar PDF:", error);
+      alert("Error al cargar el contrato: " + error.message);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
-    setPageNumber(1);
+  };
+
+  const handleAbrirModal = async () => {
+    markStepComplete(id, "vista");
+    setIsModalOpen(true);
+    try {
+      const coords = await obtenerUbicacion();
+      setUbicacion(coords);
+    } catch (error) {
+      console.error("No se pudo obtener la ubicación:", error);
+    }
   };
 
   const obtenerUbicacion = () => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocalización no soportada por este navegador"));
+        reject(new Error("Geolocalización no soportada"));
         return;
       }
-
-      console.log("📍 Solicitando permisos de ubicación...");
-
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const coords = {
+          resolve({
             latitud: position.coords.latitude,
             longitud: position.coords.longitude,
-            precision: position.coords.accuracy,
             timestamp: new Date().toISOString(),
-          };
-          console.log("✅ Ubicación obtenida:", coords);
-          resolve(coords);
+          });
         },
-        (error) => {
-          console.error("❌ Error obteniendo ubicación:", error);
-          let mensajeError = "";
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              mensajeError =
-                "Permiso de ubicación denegado. Por favor, activa los permisos en tu navegador.";
-              break;
-            case error.POSITION_UNAVAILABLE:
-              mensajeError = "Información de ubicación no disponible.";
-              break;
-            case error.TIMEOUT:
-              mensajeError =
-                "Tiempo de espera agotado al obtener la ubicación.";
-              break;
-            default:
-              mensajeError = "Error desconocido al obtener la ubicación.";
-          }
-          reject(new Error(mensajeError));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
+        (error) => reject(error),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     });
   };
 
-  const handleAbrirModal = async () => {
-    setIsModalOpen(true);
-    setErrorUbicacion(null);
-
-    try {
-      const coords = await obtenerUbicacion();
-      setUbicacion(coords);
-    } catch (error) {
-      setErrorUbicacion(error.message);
-      console.error("No se pudo obtener la ubicación:", error);
-    }
-  };
-
-  const handleCerrarModal = () => {
-    setIsModalOpen(false);
-    setUbicacion(null);
-    setErrorUbicacion(null);
-  };
-
-  const changePage = (offset) => {
-    setPageNumber((prevPageNumber) => prevPageNumber + offset);
-  };
-
-  const previousPage = () => {
-    changePage(-1);
-  };
-
-  const nextPage = () => {
-    changePage(1);
-  };
-
-  if (cargando)
+  if (cargando) {
     return (
       <div style={{ padding: "40px", textAlign: "center" }}>
-        Cargando contrato...
+        <h3>Cargando documento oficial...</h3>
+        <p>Por favor espera un momento</p>
       </div>
     );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <h3 style={{ textAlign: "center", margin: "10px 0" }}>
-        Revisión de Contrato Estático
+        Contrato de Solicitud
       </h3>
 
       {/* TOOLBAR */}
-      <div style={toolbarStyle}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: "10px",
+          padding: "10px",
+          backgroundColor: "#e5e7eb",
+        }}
+      >
         <button onClick={() => setScale((s) => Math.max(s - 0.25, 0.5))}>
           ➖ Alejar
         </button>
@@ -159,133 +150,115 @@ const Paso8VisualizarContrato = () => {
       </div>
 
       {/* VISUALIZADOR */}
-      <div style={viewerContainerStyle}>
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={
-            <div
-              style={{ color: "white", textAlign: "center", padding: "20px" }}
-            >
-              Cargando PDF...
-            </div>
-          }
-        >
-          {Array.from(new Array(numPages), (el, index) => (
-            <Page
-              key={`page_${index + 1}`}
-              pageNumber={index + 1}
-              scale={scale}
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-            />
-          ))}
-        </Document>
+      <div
+        style={{
+          flex: 1,
+          backgroundColor: "#525659",
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "20px 0",
+        }}
+      >
+        {pdfUrl && (
+          <Document
+            file={pdfUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={(error) => console.error("Error en PDF:", error)}
+          >
+            {Array.from(new Array(numPages), (el, index) => (
+              <Page
+                key={`page_${index + 1}`}
+                pageNumber={index + 1}
+                scale={scale}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            ))}
+          </Document>
+        )}
       </div>
 
-      <div style={footerStyle}>
-        <button onClick={handleAbrirModal} style={btnConfirmarStyle}>
+      {/* BOTÓN DE ACCIÓN */}
+      <div
+        style={{
+          padding: "20px",
+          textAlign: "center",
+          backgroundColor: "#f4f4f4",
+        }}
+      >
+        <button
+          onClick={handleAbrirModal}
+          style={{
+            backgroundColor: "#282195",
+            color: "white",
+            padding: "14px 40px",
+            borderRadius: "12px",
+            border: "none",
+            fontWeight: "bold",
+            cursor: "pointer",
+            width: "100%",
+            maxWidth: "300px",
+          }}
+        >
           CONFIRMAR Y FIRMAR
         </button>
       </div>
 
       {/* MODAL DE FIRMA */}
       {isModalOpen && (
-        <div className="modal-overlay" style={modalOverlayStyle}>
-          <div className="modal-content" style={modalContentStyle}>
-            <button onClick={handleCerrarModal} style={closeBtnStyle}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              padding: "20px",
+              borderRadius: "15px",
+              width: "90%",
+              maxWidth: "500px",
+              position: "relative",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <button
+              onClick={() => setIsModalOpen(false)}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                border: "none",
+                background: "none",
+                fontSize: "18px",
+                cursor: "pointer",
+              }}
+            >
               ✕
             </button>
             <FirmaDoc
               referencia={id}
               ubicacion={ubicacion}
-              onCerrar={handleCerrarModal}
+              pdfBase64={pdfBase64}
+              onCerrar={() => setIsModalOpen(false)}
             />
           </div>
         </div>
       )}
     </div>
   );
-};
-
-// Estilos
-const toolbarStyle = {
-  display: "flex",
-  justifyContent: "center",
-  gap: "10px",
-  padding: "10px",
-  backgroundColor: "#e5e7eb",
-};
-
-const viewerContainerStyle = {
-  flex: 1,
-  backgroundColor: "#525659",
-  overflow: "auto",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  padding: "20px 0",
-};
-
-const paginationStyle = {
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  gap: "15px",
-  padding: "10px",
-  backgroundColor: "#e5e7eb",
-};
-
-const footerStyle = {
-  padding: "20px",
-  textAlign: "center",
-  backgroundColor: "#f4f4f4",
-};
-
-const btnConfirmarStyle = {
-  backgroundColor: "#282195",
-  color: "white",
-  padding: "14px 40px",
-  borderRadius: "12px",
-  border: "none",
-  fontWeight: "bold",
-  cursor: "pointer",
-  width: "100%",
-  maxWidth: "300px",
-};
-
-const modalOverlayStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  width: "100%",
-  height: "100%",
-  background: "rgba(0,0,0,0.8)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 1000,
-};
-
-const modalContentStyle = {
-  background: "white",
-  padding: "20px",
-  borderRadius: "15px",
-  width: "90%",
-  maxWidth: "500px",
-  position: "relative",
-  maxHeight: "90vh",
-  overflowY: "auto",
-};
-
-const closeBtnStyle = {
-  position: "absolute",
-  top: 10,
-  right: 10,
-  border: "none",
-  background: "none",
-  cursor: "pointer",
-  fontSize: "18px",
 };
 
 export default Paso8VisualizarContrato;

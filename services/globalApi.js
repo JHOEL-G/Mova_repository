@@ -18,37 +18,39 @@ const apiServicios = axios.create({
 });
 
 [apiNegocio, apiServicios].forEach((api) => {
-  api.interceptors.request.use(
-    (config) => {
-      console.log(
-        "📤 REQUEST:",
-        config.method.toUpperCase(),
-        config.baseURL + config.url
-      );
-      if (config.data) {
-        const preview = JSON.stringify(config.data, null, 2).substring(0);
-      }
-      return config;
-    },
-    (error) => {
-      console.error("❌ REQUEST ERROR:", error);
-      return Promise.reject(error);
-    }
-  );
-
   api.interceptors.response.use(
     (response) => {
-      console.log("✅ RESPONSE:", response.status, response.config.url);
+      if (
+        response.data &&
+        response.data.error !== undefined &&
+        response.data.error !== 0
+      ) {
+        const dbError = {
+          message: response.data.resultado || "Error de validación en BD",
+          code: response.data.error,
+          details: response.data.data,
+          isDbError: true,
+        };
+        return Promise.reject(dbError);
+      }
       return response;
     },
     (error) => {
-      console.error("❌ RESPONSE ERROR:", {
+      const errorResponse = {
+        message:
+          error.response?.data?.resultado ||
+          error.response?.data?.message ||
+          "Error de conexión",
+        code: error.response?.data?.error || error.response?.status,
         status: error.response?.status,
         url: error.config?.url,
         data: error.response?.data,
-        message: error.message,
-      });
-      return Promise.reject(error);
+      };
+
+      console.error("❌ ERROR DETALLADO:", errorResponse);
+
+      // Importante: Rechazar con el nuevo formato
+      return Promise.reject(errorResponse);
     }
   );
 });
@@ -56,34 +58,17 @@ const apiServicios = axios.create({
 export const globalApi = {
   obtenerDetalleVale: async (referencia) => {
     const cleanRef = referencia.trim();
-    console.log("🔍 Obteniendo vale:", cleanRef);
     const response = await apiNegocio.get(`/Vale/${cleanRef}`);
     return response;
   },
 
   registrarFormulario: (data) => {
-    console.log("🔍 Payload completo:", JSON.stringify(data, null, 2));
-    console.log("🔍 Referencia:", data.referencia);
 
     return apiNegocio.post("/Cliente/registro", data, {
       headers: {
         referencia: data.referencia,
       },
     });
-  },
-
-  subirFotoINE: async (base64Image, imageType) => {
-    const payload = {
-      image: base64Image,
-    };
-
-    const response = await apiServicios.post("/OCR/FotoCaptura", payload, {
-      headers: {
-        imageType: imageType,
-      },
-    });
-
-    return response.data;
   },
 
   procesarOCRFinal: async () => {
@@ -97,14 +82,13 @@ export const globalApi = {
     referencia = "temp_ref"
   ) => {
     const payload = {
-      proveedorId: 1,
+      proveedorId: 4,
       base64Img: base64ImgFrontal,
       base64ImgReverso: base64ImgReverso,
       referencia: String(referencia),
-      cara: 1,
+      cara: 2,
       validate: true,
     };
-    console.log("ver datos ", payload);
     const response = await apiServicios.post("/OCR/INE", payload);
     return response.data;
   },
@@ -120,17 +104,9 @@ export const globalApi = {
       referenciaId: String(referenciaId),
     };
 
-    console.log("Payload Biometría enviado:", {
-      credencial: payload.credencial.substring(0, 50) + "...",
-      captura: payload.captura.substring(0, 50) + "...",
-      referenciaId: payload.referenciaId,
-      credencialStartsWith: payload.credencial.substring(0, 30),
-      capturaStartsWith: payload.captura.substring(0, 30),
-    });
-
     try {
       const response = await apiServicios.post(
-        "/Biometricos/validarIneSelfie",
+        "/Biometricos/v2/validarIneSelfie",
         payload
       );
       return response.data;
@@ -177,10 +153,13 @@ export const globalApi = {
         },
       });
 
-      // Retornamos los datos directamente
-      // 'data' será null porque NO hay un archivo binario en la respuesta
+      const certificar = response.data?.data?.certificar ?? 0;
+      const debeCertificar = certificar === -1 || certificar === 1;
+
       return {
-        data: null,
+        data: response.data.data,
+        certificar: certificar,
+        debeCertificar: debeCertificar,
         metadata: response.data,
         soloDatos: true,
       };
@@ -190,42 +169,17 @@ export const globalApi = {
     }
   },
 
-  firmarDocumento: async (datos) => {
-    // 1. Validar presencia de datos críticos para evitar el 400
-    const nombreValido = datos.nombre || "Nombre no proporcionado";
-    const correoValido = datos.correo || "correo@ejemplo.com";
-
-    console.log("\n🔍 === VALIDACIÓN PRE-ENVÍO ===");
-    console.log("- Nombre enviado:", nombreValido);
-    console.log("- Correo enviado:", correoValido);
-
-    // 2. Construir el payload respetando el esquema de la imagen
-    const payload = {
-      referenciaId: String(datos.referenciaId),
-      pdfDocBase64: datos.pdfBase64, // Asegúrate que este nombre coincida con tu Swagger
-      firmantes: [
-        {
-          nombreCompleto: nombreValido,
-          correoElectronico: correoValido,
-          firma: {
-            imagen: datos.firmaImagenBase64,
-            ubicacion: datos.coordenadas, // Debe ser el Array [1, 110, 220, 200, 60]
-          },
-        },
-      ],
-    };
-
+  firmarDocumento: async (datosParaFirmar) => {
     try {
       const response = await apiServicios.post(
         "/signDocument/firmarDocumentoNom151",
-        payload
+        datosParaFirmar
       );
       return response.data;
     } catch (error) {
-      // Log detallado para depurar la validación del servidor
       console.error(
-        "❌ Error 400 - Detalles de validación:",
-        error.response?.data
+        "❌ Error en firmarDocumentoNom151:",
+        error.response?.data || error.message
       );
       throw error;
     }
@@ -246,74 +200,38 @@ export const globalApi = {
           },
         }
       );
-      console.log("✅ Registro exitoso:", response.data);
       return response.data;
     } catch (error) {
-      return error;
+      console.error(
+        "❌ Error en registrarBiometricos:",
+        error.response?.data || error.message
+      );
+      throw error;
     }
   },
 
-  obtenerUrlContratoFinal: async (referencia, payloadRegistro) => {
+  obtenerUrlContratoFinal: async (
+    referencia,
+    payloadRegistro,
+    usuarioId = "1"
+  ) => {
     try {
-      console.log("📤 === INICIO DEBUG PAYLOAD REGISTRO ===");
-      console.log("🔍 Referencia:", referencia);
-      console.log("🔍 Tipo de referencia:", typeof referencia);
-      console.log(
-        "🔍 Primer carácter (validacionTipoId):",
-        referencia.charAt(0)
-      );
 
-      console.log("\n📦 PAYLOAD COMPLETO:");
-      console.log(JSON.stringify(payloadRegistro, null, 2));
 
-      console.log("\n📊 TAMAÑOS:");
-      console.log("- latitud:", payloadRegistro.latitud);
-      console.log("- logitud:", payloadRegistro.logitud);
-      console.log("- firma length:", payloadRegistro.firma?.length || 0);
-      console.log(
-        "- firmaPath length:",
-        payloadRegistro.firmaPath?.length || 0
-      );
-      console.log("- certificaDocumento:", payloadRegistro.certificaDocumento);
-      console.log("- firmantesRestantes:", payloadRegistro.firmantesRestantes);
-
-      console.log("\n🔍 CONTRATO FIRMA:");
-      console.log("- error:", payloadRegistro.contratoFirma?.error);
-      console.log("- resultado:", payloadRegistro.contratoFirma?.resultado);
-      console.log(
-        "- data array length:",
-        payloadRegistro.contratoFirma?.data?.length || 0
-      );
 
       if (payloadRegistro.contratoFirma?.data?.[0]) {
         const data0 = payloadRegistro.contratoFirma.data[0];
-        console.log("\n📋 DATA[0]:");
-        console.log("- claveMensaje:", data0.claveMensaje);
-        console.log("- codigoValidacion:", data0.codigoValidacion);
-        console.log("- estatus:", data0.estatus);
-        console.log("- hash:", data0.hash);
-        console.log("- nom151:", data0.nom151);
-        console.log("- pdfFirmado length:", data0.pdfFirmado?.length || 0);
-        console.log(
-          "- representacionVisual length:",
-          data0.representacionVisual?.length || 0
-        );
+
       }
 
-      console.log("\n📤 === FIN DEBUG PAYLOAD ===\n");
-
-      // ✅ HEADERS COMPLETOS (revisa qué headers usas en Postman)
+      const cleanRef = String(referencia).trim();
       const headers = {
         "Content-Type": "application/json",
-        referencia: "1-3C5F9EBC-4FE3-F011-B513-000C29AC7C09",
-        usuarioId: "1", // ⚠️ Verifica si este valor es correcto
-        validacionTipoId: String(referencia.charAt(0)),
-        // ✅ Agrega cualquier otro header que uses en Postman
-        // Por ejemplo, si tienes un token de autenticación:
-        // "Authorization": "Bearer YOUR_TOKEN",
+        referencia: cleanRef,
+        usuarioId: String(usuarioId),
+        validacionTipoId: String(cleanRef.charAt(0)),
       };
 
-      console.log("\n📤 HEADERS ENVIADOS:", headers);
 
       const response = await apiNegocio.post(
         "/Cliente/contrato/registro",
@@ -321,7 +239,6 @@ export const globalApi = {
         { headers }
       );
 
-      console.log("✅ Registro de contrato exitoso:", response.data);
       return response.data;
     } catch (error) {
       console.error("❌ Error en registro de contrato:", error.response?.data);
@@ -334,6 +251,33 @@ export const globalApi = {
         console.error("- Data:", error.response.data.data);
       }
 
+      throw error;
+    }
+  },
+
+  obtenerPdfContrato: async (referencia) => {
+    const cleanRef = referencia.trim();
+    const tipoId = cleanRef.charAt(0);
+
+    try {
+      const response = await apiNegocio.get("/Solicitud/contrato/v2/doc", {
+        headers: {
+          validacionTipoId: tipoId,
+          referencia: cleanRef,
+        },
+      });
+
+      if (response.data.error !== 0) {
+        throw new Error(response.data.resultado || "Error al obtener el PDF");
+      }
+
+      if (!response.data.data) {
+        throw new Error("El servidor no devolvió el PDF");
+      }
+
+      return response.data.data;
+    } catch (error) {
+      console.error("❌ Error al obtener PDF:", error.message);
       throw error;
     }
   },

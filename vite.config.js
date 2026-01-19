@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
+import path from "path";
+
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -17,11 +19,6 @@ export default defineConfig({
             if (req.headers.referencia) {
               proxyReq.setHeader("referencia", req.headers.referencia);
             }
-            console.log("🚀 Proxy Request:", req.method, req.url);
-            console.log("🚀 Headers enviados:", req.headers);
-          });
-          proxy.on("proxyRes", (proxyRes, req) => {
-            console.log("✅ Proxy Response:", proxyRes.statusCode, req.url);
           });
         },
       },
@@ -31,6 +28,11 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path.replace(/^\/api-servicios/, ""),
       },
+    },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
     },
   },
 });
