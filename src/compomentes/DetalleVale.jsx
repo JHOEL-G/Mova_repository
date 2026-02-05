@@ -10,8 +10,8 @@ export default function DetalleVale() {
   const { id } = useParams();
   const [vale, setVale] = useState(null);
   const [loading, setLoading] = useState(!!id);
-  const [apiError, setApiError] = useState(null); // ✅ NUEVO
-  const { markStepComplete } = useFlow(); // ✅ QUITAMOS invalidateId
+  const [apiError, setApiError] = useState(null);
+  const { markStepComplete } = useFlow();
   const { error, handleApiError, clearError } = useApiError();
 
   useEffect(() => {
@@ -29,15 +29,12 @@ export default function DetalleVale() {
       .then((res) => {
         const respuestaApi = res.data;
 
-        // ✅ CASO 1: Éxito total (error: 0)
         if (respuestaApi && respuestaApi.error === 0 && respuestaApi.data) {
           setVale(respuestaApi.data);
           setApiError(null);
           return;
         }
 
-        // ⚠️ CASO 2: Error del backend PERO con datos parciales (error: 1)
-        // Aquí cae tu referencia: 2-efc08f04-ecef-f011-b513-000c29ac7c09
         if (respuestaApi && respuestaApi.error === 1 && respuestaApi.data) {
           setVale(respuestaApi.data); // Guardamos los datos que SÍ vienen
           setApiError({
@@ -48,7 +45,6 @@ export default function DetalleVale() {
           return;
         }
 
-        // ❌ CASO 3: Error sin datos
         setVale(null);
         setApiError({
           tipo: 'sin_datos',
@@ -76,14 +72,11 @@ export default function DetalleVale() {
     );
   }
 
-  // ⚠️ PANTALLA ESPECIAL: Error del API con datos parciales
-  // Se muestra cuando error: 1 pero sí hay data
   if (apiError?.tipo === 'api') {
     return (
       <>
         <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-4">
           <div className="w-full max-w-md bg-white shadow-2xl rounded-3xl overflow-hidden">
-            {/* Header de advertencia */}
             <div className="bg-amber-500 p-6 text-white text-center">
               <div className="text-6xl mb-4">⚠️</div>
               <h1 className="text-2xl font-bold">Proceso Incompleto</h1>
@@ -93,7 +86,6 @@ export default function DetalleVale() {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Mensaje de error del backend */}
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
                 <p className="text-sm text-amber-800 font-semibold mb-2">
                   {apiError.mensaje}
@@ -103,7 +95,6 @@ export default function DetalleVale() {
                 </p>
               </div>
 
-              {/* Mostrar la leyenda si existe */}
               {vale?.leyenda && (
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <div
@@ -113,7 +104,6 @@ export default function DetalleVale() {
                 </div>
               )}
 
-              {/* Instrucciones */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <span>📞</span> ¿Qué hacer?

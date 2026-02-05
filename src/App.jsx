@@ -17,15 +17,11 @@ function App() {
           <Route path="/:id?" element={<DetalleVale />} />
 
           <Route path="/formulario/:id" element={
-            <ProtectedRoute step="formulario">
-              <FormularioCompleto />
-            </ProtectedRoute>
+            <FormularioCompleto />
           } />
 
           <Route path="/captura-ine/:id" element={
-            <ProtectedRoute step="capturaINE">
-              <CapturaINE />
-            </ProtectedRoute>
+            <CapturaINE />
           } />
 
           <Route path="/reconocimiento/:id" element={

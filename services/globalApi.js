@@ -49,7 +49,6 @@ const apiServicios = axios.create({
 
       console.error("❌ ERROR DETALLADO:", errorResponse);
 
-      // Importante: Rechazar con el nuevo formato
       return Promise.reject(errorResponse);
     }
   );

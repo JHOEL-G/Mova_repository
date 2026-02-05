@@ -12,6 +12,8 @@ import {
 import { globalApi } from "../../services/globalApi";
 import { useNavigate, useParams } from "react-router";
 import { useFlow } from "./FlowContext";
+import Cards from "react-credit-cards-2";
+import "react-credit-cards-2/dist/es/styles-compiled.css";
 
 
 export default function FormularioCompleto() {
@@ -21,7 +23,7 @@ export default function FormularioCompleto() {
   const [cargando, setCargando] = useState(false);
   const [listaParentescos, setListaParentescos] = useState([]);
   const [listaBancos, setListaBancos] = useState([]);
-  const [erroresValidacion, setErroresValidacion] = useState([]); // ← AGREGAR ESTA LÍNEA
+  const [erroresValidacion, setErroresValidacion] = useState([]);
   const { markStepComplete } = useFlow();
 
 
@@ -76,45 +78,47 @@ export default function FormularioCompleto() {
     const errores = [];
 
     // Validar Domicilio
-    if (!formData.calle.trim()) errores.push("La calle es obligatoria");
+    if (!formData.calle.trim()) errores.push("📍 Domicilio: La calle es obligatoria");
     if (!formData.numExterior.trim())
-      errores.push("El número exterior es obligatorio");
+      errores.push("📍 Domicilio: El número exterior es obligatorio");
     if (!formData.codigoPostal.trim() || formData.codigoPostal.length !== 5) {
-      errores.push("El código postal debe tener 5 dígitos");
+      errores.push("📍 Domicilio: El código postal debe tener 5 dígitos");
     }
-    if (!formData.colonia.trim()) errores.push("Debe seleccionar una colonia");
-    if (!formData.rfc.trim()) errores.push("El RFC es obligatorio");
+    if (!formData.colonia.trim()) errores.push("📍 Domicilio: Debe seleccionar una colonia");
+    if (!formData.rfc.trim()) errores.push("📋 Personales: El RFC es obligatorio");
     if (!formData.correo.trim()) {
-      errores.push("El correo electrónico es obligatorio");
+      errores.push("📋 Personales: El correo electrónico es obligatorio");
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
-      errores.push("El correo electrónico no es válido");
+      errores.push("📋 Personales: El correo electrónico no es válido");
     }
 
     // Validar Datos Laborales
     if (!formData.empresa.trim())
-      errores.push("El nombre de la empresa es obligatorio");
+      errores.push("💼 Laborales: El nombre de la empresa es obligatorio");
     if (!formData.telefonoEmpresa.trim())
-      errores.push("El teléfono de la empresa es obligatorio");
+      errores.push("💼 Laborales: El teléfono de la empresa es obligatorio");
     if (!formData.antiguedadLaboral || formData.antiguedadLaboral <= 0) {
-      errores.push("La antigüedad laboral debe ser mayor a 0");
+      errores.push("💼 Laborales: La antigüedad laboral debe ser mayor a 0");
     }
     if (!formData.ingresosMensuales || formData.ingresosMensuales <= 0) {
-      errores.push("Los ingresos mensuales deben ser mayores a 0");
+      errores.push("💼 Laborales: Los ingresos mensuales deben ser mayores a 0");
     }
 
     // Validar Referencias
     referencias.forEach((ref, index) => {
       if (!ref.nombre.trim())
-        errores.push(`Referencia ${index + 1}: falta el nombre`);
+        errores.push(`👥 Referencia ${index + 1}: Falta el nombre`);
       if (!ref.apellidoPaterno.trim())
-        errores.push(`Referencia ${index + 1}: falta el apellido paterno`);
+        errores.push(`👥 Referencia ${index + 1}: Falta el apellido paterno`);
+      if (!ref.apellidoMaterno.trim())
+        errores.push(`👥 Referencia ${index + 1}: Falta el apellido materno`);
       if (!ref.telefono.trim())
-        errores.push(`Referencia ${index + 1}: falta el teléfono`);
+        errores.push(`👥 Referencia ${index + 1}: Falta el teléfono`);
       if (!ref.parentesco)
-        errores.push(`Referencia ${index + 1}: debe seleccionar un parentesco`);
+        errores.push(`👥 Referencia ${index + 1}: Debe seleccionar un parentesco`);
       if (!ref.tiempoConocido || ref.tiempoConocido <= 0) {
         errores.push(
-          `Referencia ${index + 1}: el tiempo de conocerse debe ser mayor a 0`
+          `👥 Referencia ${index + 1}: Debe indicar desde cuándo se conocen`
         );
       }
     });
@@ -122,35 +126,44 @@ export default function FormularioCompleto() {
     // Validar Beneficiarios
     beneficiarios.forEach((ben, index) => {
       if (!ben.nombre.trim())
-        errores.push(`Beneficiario ${index + 1}: falta el nombre`);
+        errores.push(`👨‍👩‍👧 Beneficiario ${index + 1}: Falta el nombre`);
       if (!ben.apellidoPaterno.trim())
-        errores.push(`Beneficiario ${index + 1}: falta el apellido paterno`);
+        errores.push(`👨‍👩‍👧 Beneficiario ${index + 1}: Falta el apellido paterno`);
       if (!ben.parentesco)
         errores.push(
-          `Beneficiario ${index + 1}: debe seleccionar un parentesco`
+          `👨‍👩‍👧 Beneficiario ${index + 1}: Debe seleccionar un parentesco`
         );
       if (!ben.fechaNacimiento)
-        errores.push(`Beneficiario ${index + 1}: falta la fecha de nacimiento`);
+        errores.push(`👨‍👩‍👧 Beneficiario ${index + 1}: Falta la fecha de nacimiento`);
+      if (!ben.porcentaje || parseFloat(ben.porcentaje) <= 0)
+        errores.push(`👨‍👩‍👧 Beneficiario ${index + 1}: Debe asignar un porcentaje válido`);
     });
+
+    // Validar suma de porcentajes de beneficiarios
+    const porcentajeTotal = beneficiarios.reduce(
+      (sum, ben) => sum + (parseFloat(ben.porcentaje) || 0),
+      0
+    );
+    if (porcentajeTotal !== 100) {
+      errores.push(`👨‍👩‍👧 Beneficiarios: La suma de porcentajes debe ser 100% (actualmente: ${porcentajeTotal}%)`);
+    }
 
     // Validar Datos Bancarios
     if (formData.datosBancarios === "debito") {
-      if (
-        !formData.numeroTarjeta.trim() ||
-        formData.numeroTarjeta.length !== 16
-      ) {
-        errores.push("El número de tarjeta debe tener 16 dígitos");
+      // Limpiar espacios antes de validar
+      const numeroLimpio = formData.numeroTarjeta.replace(/\s/g, "");
+      const confirmarLimpio = formData.confirmarTarjeta.replace(/\s/g, "");
+
+      if (!numeroLimpio || numeroLimpio.length !== 16) {
+        errores.push("💳 Datos Bancarios: El número de tarjeta debe tener exactamente 16 dígitos");
       }
-      if (
-        !formData.confirmarTarjeta.trim() ||
-        formData.confirmarTarjeta.length !== 16
-      ) {
-        errores.push("Debe confirmar el número de tarjeta (16 dígitos)");
+      if (!confirmarLimpio || confirmarLimpio.length !== 16) {
+        errores.push("💳 Datos Bancarios: Debe confirmar el número de tarjeta (16 dígitos)");
       }
-      if (formData.numeroTarjeta !== formData.confirmarTarjeta) {
-        errores.push("Los números de tarjeta no coinciden");
+      if (numeroLimpio !== confirmarLimpio) {
+        errores.push("💳 Datos Bancarios: Los números de tarjeta no coinciden");
       }
-      if (!formData.banco.trim()) errores.push("Debe seleccionar un banco");
+      if (!formData.banco.trim()) errores.push("💳 Datos Bancarios: Debe seleccionar un banco");
     }
 
     return errores;
@@ -257,6 +270,10 @@ export default function FormularioCompleto() {
     setErroresValidacion([]);
     setCargando(true);
     try {
+      // Limpiar números de tarjeta antes de enviar (remover espacios)
+      const numeroTarjetaLimpio = formData.numeroTarjeta.replace(/\s/g, "");
+      const confirmarTarjetaLimpio = formData.confirmarTarjeta.replace(/\s/g, "");
+
       const payloadFinal = {
         direccion: {
           calle: formData.calle || "",
@@ -295,8 +312,8 @@ export default function FormularioCompleto() {
           ingresosMenusales: parseFloat("500.0"),
         },
         tarjeta: {
-          numTarjeta: String(formData.numeroTarjeta || ""),
-          numTarjetaConf: String(formData.confirmarTarjeta || ""),
+          numTarjeta: numeroTarjetaLimpio,
+          numTarjetaConf: confirmarTarjetaLimpio,
           banco:
             Number(formData.claveBanco) > 0
               ? Number(formData.claveBanco)
@@ -345,34 +362,52 @@ export default function FormularioCompleto() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="bg-white px-6 py-4 flex items-center justify-between border-b shadow-sm sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Logo Mova" className="h-8 w-auto" />
-        </div>
-        <span className="text-slate-400 text-xs font-mono">v 1.24.23.0</span>
-      </header>
+
 
       <main className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
+          <div className="py-4">
+            <img
+              src="/logo.png"
+              alt="Logo Mova"
+              className="h-10 w-auto object-contain"
+            />
+          </div>
           <p className="text-slate-500 text-sm mb-6">
             Por favor, capture la información solicitada a continuación.
           </p>
 
           {erroresValidacion.length > 0 && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in slide-in-from-bottom-4 duration-300">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                    <AlertCircle className="w-8 h-8 text-red-500" />
+              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                <div className="p-8">
+                  <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                      <AlertCircle className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">
+                      Campos incompletos o inválidos
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      Por favor, revisa y completa los siguientes campos:
+                    </p>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-3">
-                    Campos incompletos
-                  </h3>
-                  <p className="text-gray-600 mb-8">
-                    Completa todos los campos marcados con{" "}
-                    <span className="text-red-500 font-bold text-lg">*</span>{" "}
-                    para continuar
-                  </p>
+
+                  {/* Lista de errores con scroll */}
+                  <div className="max-h-[50vh] overflow-y-auto mb-6 bg-red-50 rounded-lg p-4 border border-red-200">
+                    <ul className="space-y-2">
+                      {erroresValidacion.map((error, index) => (
+                        <li
+                          key={index}
+                          className="flex items-start gap-2 text-sm text-red-700"
+                        >
+                          <span className="text-red-500 font-bold mt-0.5">•</span>
+                          <span className="flex-1">{error}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
                   <button
                     onClick={() => setErroresValidacion([])}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"
@@ -1039,51 +1074,94 @@ export default function FormularioCompleto() {
             </div>
 
             {/* Selección de Tipo de Cobro */}
-            <div className="flex gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-              <label
-                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "debito"
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                  : "bg-white text-slate-600 border-slate-200"
-                  }`}
-              >
-                <input
-                  type="radio"
-                  name="datosBancarios"
-                  value="debito"
-                  className="hidden"
-                  checked={formData.datosBancarios === "debito"}
-                  onChange={handleInputChange}
-                />
-                <span className="text-sm font-bold">CON TARJETA</span>
-              </label>
+            <div className="mb-6">
+              <p className="text-xs font-medium text-slate-600 mb-3">
+                Seleccione el método de cobro *
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                <label
+                  className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "debito"
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="datosBancarios"
+                    value="debito"
+                    className="hidden"
+                    checked={formData.datosBancarios === "debito"}
+                    onChange={handleInputChange}
+                  />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                    />
+                  </svg>
+                  <span className="text-sm font-bold">CON TARJETA</span>
+                </label>
 
-              <label
-                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "sin_tarjeta"
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                  : "bg-white text-slate-600 border-slate-200"
-                  }`}
-              >
-                <input
-                  type="radio"
-                  name="datosBancarios"
-                  value="sin_tarjeta"
-                  className="hidden"
-                  checked={formData.datosBancarios === "sin_tarjeta"}
-                  onChange={handleInputChange}
-                />
-                <span className="text-sm font-bold">RETIRO SIN TARJETA</span>
-              </label>
+                {/*<label
+                  className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "sin_tarjeta"
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="datosBancarios"
+                    value="sin_tarjeta"
+                    className="hidden"
+                    checked={formData.datosBancarios === "sin_tarjeta"}
+                    onChange={handleInputChange}
+                  />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  <span className="text-sm font-bold whitespace-nowrap">SIN TARJETA</span>
+                </label>*/}
+              </div>
             </div>
 
-            {/* Panel Detalle de Tarjeta (Solo visible si es débito) */}
             {formData.datosBancarios === "debito" && (
               <div className="border border-slate-200 rounded-lg p-5 bg-slate-50/50 animate-in fade-in slide-in-from-top-2 duration-300">
                 <p className="text-[10px] font-bold text-indigo-500 uppercase mb-4 tracking-widest">
                   Detalles de la Tarjeta
                 </p>
 
+                {/*}
+      <div className="flex justify-center mb-6">
+        <Cards
+          cvc="***"
+          name="TITULAR DE LA TARJETA"
+          number={formData.numeroTarjeta || ""}
+          expiry=""
+          focused="number"
+        />
+      </div>
+      */}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Número de Tarjeta */}
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">
                       Número de tarjeta *
@@ -1092,11 +1170,26 @@ export default function FormularioCompleto() {
                       type="text"
                       name="numeroTarjeta"
                       maxLength={16}
-                      placeholder="XXXX XXXX XXXX XXXX"
+                      placeholder="XXXXXXXXXXXXXXXX"
                       value={formData.numeroTarjeta}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        if (val.length <= 16) {
+                          handleInputChange({
+                            target: { name: "numeroTarjeta", value: val }
+                          });
+                        }
+                      }}
                       className="w-full p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm font-mono tracking-widest"
                     />
+                    <p className={`text-[10px] mt-1 ${formData.numeroTarjeta.length === 16
+                      ? 'text-green-600 font-medium'
+                      : 'text-slate-400'
+                      }`}>
+                      {formData.numeroTarjeta.length === 16
+                        ? '✓ Tarjeta válida - 16/16 dígitos'
+                        : `${formData.numeroTarjeta.length}/16 dígitos`}
+                    </p>
                   </div>
 
                   {/* Confirmar Tarjeta */}
@@ -1108,11 +1201,68 @@ export default function FormularioCompleto() {
                       type="text"
                       name="confirmarTarjeta"
                       maxLength={16}
-                      placeholder="XXXX XXXX XXXX XXXX"
+                      placeholder="XXXXXXXXXXXXXXXX"
                       value={formData.confirmarTarjeta}
-                      onChange={handleInputChange}
-                      className="w-full p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm font-mono tracking-widest"
+                      disabled={formData.numeroTarjeta.length !== 16}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        if (val.length <= 16) {
+                          handleInputChange({
+                            target: { name: "confirmarTarjeta", value: val }
+                          });
+                        }
+                      }}
+                      className={`w-full p-2 border-b focus:border-indigo-500 outline-none bg-transparent text-sm font-mono tracking-widest ${formData.numeroTarjeta.length !== 16
+                        ? 'opacity-50 cursor-not-allowed border-slate-100'
+                        : formData.confirmarTarjeta.length === 16 &&
+                          formData.numeroTarjeta === formData.confirmarTarjeta
+                          ? 'border-green-400'
+                          : formData.confirmarTarjeta.length === 16 &&
+                            formData.numeroTarjeta !== formData.confirmarTarjeta
+                            ? 'border-red-400'
+                            : 'border-slate-200'
+                        }`}
                     />
+                    <div className="mt-1">
+                      {/* Si el primer campo no tiene 16 dígitos */}
+                      {formData.numeroTarjeta.length !== 16 && (
+                        <p className="text-[10px] text-slate-400">
+                          Complete el número de tarjeta primero
+                        </p>
+                      )}
+
+                      {/* Si está habilitado y escribiendo */}
+                      {formData.numeroTarjeta.length === 16 && formData.confirmarTarjeta.length > 0 && formData.confirmarTarjeta.length < 16 && (
+                        <p className="text-[10px] text-orange-500 font-medium">
+                          {formData.confirmarTarjeta.length}/16 dígitos
+                        </p>
+                      )}
+
+                      {/* Si tiene 16 dígitos y coinciden */}
+                      {formData.numeroTarjeta.length === 16 &&
+                        formData.confirmarTarjeta.length === 16 &&
+                        formData.numeroTarjeta === formData.confirmarTarjeta && (
+                          <p className="text-[10px] text-green-600 font-medium">
+                            ✓ Tarjeta confirmada correctamente
+                          </p>
+                        )}
+
+                      {/* Si tiene 16 dígitos pero NO coinciden */}
+                      {formData.numeroTarjeta.length === 16 &&
+                        formData.confirmarTarjeta.length === 16 &&
+                        formData.numeroTarjeta !== formData.confirmarTarjeta && (
+                          <p className="text-[10px] text-red-500 font-medium">
+                            ⚠️ Los números no coinciden
+                          </p>
+                        )}
+
+                      {/* Si está habilitado pero vacío */}
+                      {formData.numeroTarjeta.length === 16 && formData.confirmarTarjeta.length === 0 && (
+                        <p className="text-[10px] text-slate-400">
+                          0/16 dígitos
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Selector de Banco Dinámico */}
@@ -1140,11 +1290,19 @@ export default function FormularioCompleto() {
                   </div>
                 </div>
 
-                {formData.numeroTarjeta &&
-                  formData.confirmarTarjeta &&
+                {/* Validación de coincidencia - mensaje general */}
+                {formData.numeroTarjeta.length === 16 &&
+                  formData.confirmarTarjeta.length === 16 &&
                   formData.numeroTarjeta !== formData.confirmarTarjeta && (
-                    <p className="text-[10px] text-red-500 mt-2 font-medium">
-                      Los números de tarjeta no coinciden.
+                    <p className="text-[10px] text-red-500 mt-4 font-medium">
+                      ⚠️ Los números de tarjeta no coinciden.
+                    </p>
+                  )}
+                {formData.numeroTarjeta.length === 16 &&
+                  formData.confirmarTarjeta.length === 16 &&
+                  formData.numeroTarjeta === formData.confirmarTarjeta && (
+                    <p className="text-[10px] text-green-600 mt-4 font-medium">
+                      ✓ Los números de tarjeta coinciden correctamente.
                     </p>
                   )}
               </div>

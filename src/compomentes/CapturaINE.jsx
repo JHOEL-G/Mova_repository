@@ -102,16 +102,12 @@ export default function CapturaINE() {
       );
       const info = respuesta?.data?.[0];
 
-      if (!info || info.estatus === "ERROR" || !info.curp || !info.nombres) {
+      {/*if (!info || info.estatus === "ERROR" || !info.curp) {
         throw new Error("No se detectó el frente de una INE válida...");
-      }
+      }}*/}
 
-      // --- SOLUCIÓN AQUÍ ---
-      // Guardamos en el estado y TAMBIÉN en localStorage para que el siguiente componente la encuentre
       setFotoIneFrontal(imagenDataUrl);
       localStorage.setItem(`fotoIne_${id}`, imagenDataUrl);
-      // ---------------------
-
       setStep(3);
     } catch (err) {
       setError(err.message || "Error al validar el frente.");
@@ -141,7 +137,7 @@ export default function CapturaINE() {
 
       if (info && info.estatus !== "ERROR" && info.mrz) {
         localStorage.setItem(`ocrData_${id}`, JSON.stringify(info));
-        localStorage.setItem(`fotoIneReverso_${id}`, imagenReversoUrl); // ← AQUÍ GUARDAMOS EL REVERSO
+        localStorage.setItem(`fotoIneReverso_${id}`, imagenReversoUrl);
         stopStream();
         setStep(5);
       } else {
@@ -177,7 +173,6 @@ export default function CapturaINE() {
     else if (step === 3) await validarReversoYFinalizar(compressed);
   };
 
-  // Reiniciar todo y volver al paso 1
   const reiniciarProceso = () => {
     setError(null);
     setFotoIneFrontal(null);
@@ -201,7 +196,6 @@ export default function CapturaINE() {
         className="hidden"
       />
 
-      {/* Header progreso */}
       {(step === 2 || step === 3) && (
         <div className="px-6 pt-10 pb-6 text-center bg-white">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
@@ -229,7 +223,6 @@ export default function CapturaINE() {
       )}
 
       <main className="flex-1 relative">
-        {/* Pantalla inicial */}
         {step === 1 && (
           <div className="flex flex-col items-center justify-center h-full px-8 text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">
@@ -248,7 +241,6 @@ export default function CapturaINE() {
           </div>
         )}
 
-        {/* Cámara fullscreen */}
         {(step === 2 || step === 3) && (
           <>
             <video
@@ -308,21 +300,20 @@ export default function CapturaINE() {
               <Camera size={20} />
               CAPTURAR
             </button>
-            {/*<button
-              onClick={() => fileInputRef.current?.click()} // Activa el input oculto que ya tienes arriba
+            <button
+              onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
               className="bg-white border-2 border-gray-200 text-gray-600 py-3.5 rounded-xl font-semibold text-base flex items-center justify-center gap-2 hover:bg-gray-50 transition"
             >
               <Upload size={20} />
               SUBIR DESDE ARCHIVO
-            </button>*/}
+            </button>
           </div>
         </div>
       )}
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Alerta simplificada: solo "REINTENTAR" */}
       {error && !isProcessing && (step === 2 || step === 3) && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full">

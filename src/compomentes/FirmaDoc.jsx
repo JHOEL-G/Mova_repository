@@ -9,6 +9,7 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
   const sigCanvas = useRef({});
   const [loading, setLoading] = useState(false);
   const [mostrarExito, setMostrarExito] = useState(false);
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
   const [urlRedireccion, setUrlRedireccion] = useState("");
   const { markStepComplete } = useFlow();
@@ -16,6 +17,7 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
   const [correo, setCorreo] = useState("cliente@ejemplo.com");
   const [coordenadas, setCoordenadas] = useState([1, 110, 220, 200, 60]);
   const [debeCertificar, setDebeCertificar] = useState(false);
+  const [mostrarErrorFirma, setMostrarErrorFirma] = useState(false);
 
   const [canvasSize, setCanvasSize] = useState({
     width: 440,
@@ -195,7 +197,8 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
     });
   };
 
-  const ejecutarFirma = async () => {
+  // Función para mostrar el modal de confirmación
+  const handleClickFinalizar = () => {
     if (!nombre || nombre.trim() === "" || !correo || correo.trim() === "") {
       alert("Por favor, introduce un nombre y correo válido antes de firmar.");
       return;
@@ -203,7 +206,7 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
 
     const trimmed = getTrimmedCanvasManual();
     if (!trimmed || trimmed.toDataURL().length < 3000) {
-      alert("Por favor, dibuja tu firma.");
+      setMostrarErrorFirma(true); // En lugar de alert
       return;
     }
 
@@ -211,6 +214,16 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
       alert("No se pudo obtener tu ubicación. Por favor, intenta nuevamente.");
       return;
     }
+
+    // Mostrar modal de confirmación
+    setMostrarConfirmacion(true);
+  };
+
+  const ejecutarFirma = async () => {
+    // Cerrar modal de confirmación
+    setMostrarConfirmacion(false);
+
+    const trimmed = getTrimmedCanvasManual();
 
     setLoading(true);
     try {
@@ -587,9 +600,28 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
           Dibuja tu firma
         </h3>
 
-        {ubicacion && (
+        {ubicacion ? (
           <div style={{ fontSize: "12px", color: "#666", marginBottom: "10px", wordBreak: "break-word" }}>
             📍 Ubicación obtenida: Lat {ubicacion.latitud.toFixed(6)}, Lon {ubicacion.longitud.toFixed(6)}
+          </div>
+        ) : (
+          <div style={{
+            fontSize: "14px",
+            color: "#dc2626",
+            marginBottom: "15px",
+            padding: "12px",
+            background: "#fef2f2",
+            borderRadius: "8px",
+            border: "1px solid #fecaca",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            maxWidth: "440px",
+            margin: "0 auto 15px"
+          }}>
+            <span style={{ fontSize: "18px" }}>⚠️</span>
+            <span>Por favor, activa tu ubicación para continuar</span>
           </div>
         )}
 
@@ -647,7 +679,7 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
             Limpiar
           </button>
           <button
-            onClick={ejecutarFirma}
+            onClick={handleClickFinalizar}
             disabled={loading || !ubicacion}
             style={{
               padding: "10px 20px",
@@ -665,6 +697,186 @@ export default function FirmaDoc({ referencia, ubicacion, onCerrar }) {
         </div>
       </div>
 
+      {/* Modal de Confirmación */}
+      {mostrarConfirmacion && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(0, 0, 0, 0.7)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 9998,
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "white",
+            borderRadius: "16px",
+            padding: "30px 25px",
+            maxWidth: "420px",
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+            animation: "slideIn 0.3s ease-out"
+          }}>
+            <div style={{
+              width: "70px",
+              height: "70px",
+              background: "#FFA500",
+              borderRadius: "50%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              margin: "0 auto 20px",
+              fontSize: "46px",
+              paddingBottom: "12px",
+            }}>
+              ⚠️
+            </div>
+            <h2 style={{
+              color: "#333",
+              marginBottom: "15px",
+              fontSize: "22px",
+              fontWeight: "bold"
+            }}>
+              ¿Estás seguro?
+            </h2>
+            <p style={{
+              color: "#666",
+              fontSize: "15px",
+              lineHeight: "1.6",
+              marginBottom: "30px"
+            }}>
+              Estás a punto de <strong>finalizar el proceso de firma</strong>. Una vez confirmado, no podrás realizar cambios.
+            </p>
+            <div style={{
+              display: "flex",
+              gap: "12px",
+              justifyContent: "center"
+            }}>
+              <button
+                onClick={() => setMostrarConfirmacion(false)}
+                style={{
+                  padding: "12px 30px",
+                  background: "#e5e7eb",
+                  color: "#374151",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                  flex: 1
+                }}
+                onMouseEnter={(e) => (e.target.style.background = "#d1d5db")}
+                onMouseLeave={(e) => (e.target.style.background = "#e5e7eb")}
+              >
+                No
+              </button>
+              <button
+                onClick={ejecutarFirma}
+                style={{
+                  padding: "12px 30px",
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                  flex: 1
+                }}
+                onMouseEnter={(e) => (e.target.style.background = "#1d4ed8")}
+                onMouseLeave={(e) => (e.target.style.background = "#2563eb")}
+              >
+                Sí
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Advertencia: Firma Vacía */}
+      {mostrarErrorFirma && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(0, 0, 0, 0.7)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 9999, // Un nivel más arriba por si acaso
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "white",
+            borderRadius: "16px",
+            padding: "30px 25px",
+            maxWidth: "420px",
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{
+              width: "70px",
+              height: "70px",
+              background: "#FEE2E2", // Rojo suave de fondo
+              borderRadius: "50%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              margin: "0 auto 20px",
+              fontSize: "40px",
+            }}>
+              ✍️
+            </div>
+            <h2 style={{
+              color: "#333",
+              marginBottom: "15px",
+              fontSize: "22px",
+              fontWeight: "bold"
+            }}>
+              Firma requerida
+            </h2>
+            <p style={{
+              color: "#666",
+              fontSize: "15px",
+              lineHeight: "1.6",
+              marginBottom: "30px"
+            }}>
+              El recuadro de firma parece estar vacío o es demasiado corto. Por favor, <strong>dibuja tu firma</strong> claramente antes de continuar.
+            </p>
+            <button
+              onClick={() => setMostrarErrorFirma(false)}
+              style={{
+                width: "100%",
+                padding: "12px 30px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+              onMouseEnter={(e) => (e.target.style.background = "#1d4ed8")}
+              onMouseLeave={(e) => (e.target.style.background = "#2563eb")}
+            >
+              Entendido, volver a intentar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Éxito */}
       {mostrarExito && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0, 0, 0, 0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
           <div style={{ background: "white", borderRadius: "20px", padding: "30px 20px", maxWidth: "500px", width: "100%", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
