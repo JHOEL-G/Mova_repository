@@ -8,6 +8,7 @@ import Paso8VisualizarContrato from "./compomentes/Paso8VisualizarContrato";
 import FirmaDoc from "./compomentes/FirmaDoc";
 import { FlowProvider } from "./compomentes/FlowContext";
 import { ProtectedRoute } from "./compomentes/ProtectedRoute";
+import VerificarInformacion from "./compomentes/VerificarInformacion";
 
 function App() {
   return (
@@ -18,6 +19,10 @@ function App() {
 
           <Route path="/formulario/:id" element={
             <FormularioCompleto />
+          } />
+
+          <Route path="/verificar-informacion/:id" element={
+            <VerificarInformacion />
           } />
 
           <Route path="/captura-ine/:id" element={

@@ -14,6 +14,7 @@ import { useNavigate, useParams } from "react-router";
 import { useFlow } from "./FlowContext";
 import Cards from "react-credit-cards-2";
 import "react-credit-cards-2/dist/es/styles-compiled.css";
+import VerificarInformacion from "./VerificarInformacion";
 
 
 export default function FormularioCompleto() {
@@ -24,6 +25,7 @@ export default function FormularioCompleto() {
   const [listaParentescos, setListaParentescos] = useState([]);
   const [listaBancos, setListaBancos] = useState([]);
   const [erroresValidacion, setErroresValidacion] = useState([]);
+  const [mostrarVerificacion, setMostrarVerificacion] = useState(false);
   const { markStepComplete } = useFlow();
 
 
@@ -116,11 +118,6 @@ export default function FormularioCompleto() {
         errores.push(`👥 Referencia ${index + 1}: Falta el teléfono`);
       if (!ref.parentesco)
         errores.push(`👥 Referencia ${index + 1}: Debe seleccionar un parentesco`);
-      if (!ref.tiempoConocido || ref.tiempoConocido <= 0) {
-        errores.push(
-          `👥 Referencia ${index + 1}: Debe indicar desde cuándo se conocen`
-        );
-      }
     });
 
     // Validar Beneficiarios
@@ -259,6 +256,26 @@ export default function FormularioCompleto() {
     ]);
   };
 
+  // Función para mostrar la pantalla de verificación
+  const handleVerificar = () => {
+    const errores = validarFormulario();
+    if (errores.length > 0) {
+      setErroresValidacion(errores);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    setErroresValidacion([]);
+    setMostrarVerificacion(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Función para volver a editar
+  const handleEditar = () => {
+    setMostrarVerificacion(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleSubmit = async () => {
     const errores = validarFormulario();
     if (errores.length > 0) {
@@ -359,6 +376,22 @@ export default function FormularioCompleto() {
       setCargando(false);
     }
   };
+
+  // Si se está mostrando la verificación, renderizar esa pantalla
+  if (mostrarVerificacion) {
+    return (
+      <VerificarInformacion
+        formData={formData}
+        referencias={referencias}
+        beneficiarios={beneficiarios}
+        listaBancos={listaBancos}
+        listaParentescos={listaParentescos}
+        onConfirmar={handleSubmit}
+        onEditar={handleEditar}
+        cargando={cargando}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -746,7 +779,7 @@ export default function FormularioCompleto() {
                       />
 
                       {/* MODIFICACIÓN: Tipo date para fecha de conocimiento */}
-                      <div className="flex flex-col">
+                      {/* <div className="flex flex-col">
                         <label className="text-[10px] text-slate-400 ml-2">
                           Conocido desde:
                         </label>
@@ -763,7 +796,7 @@ export default function FormularioCompleto() {
                             )
                           }
                         />
-                      </div>
+                      </div> */}
                     </div>
                     <select
                       className="w-full p-2 border-b border-slate-200 focus:border-indigo-500 outline-none bg-transparent text-sm"
@@ -1110,7 +1143,7 @@ export default function FormularioCompleto() {
                   <span className="text-sm font-bold">CON TARJETA</span>
                 </label>
 
-                {/*<label
+                <label
                   className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-lg border cursor-pointer transition-all ${formData.datosBancarios === "sin_tarjeta"
                     ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
                     : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
@@ -1139,7 +1172,7 @@ export default function FormularioCompleto() {
                     />
                   </svg>
                   <span className="text-sm font-bold whitespace-nowrap">SIN TARJETA</span>
-                </label>*/}
+                </label>
               </div>
             </div>
 
@@ -1311,14 +1344,14 @@ export default function FormularioCompleto() {
 
           <div className="flex justify-end mt-8">
             <button
-              onClick={handleSubmit}
+              onClick={handleVerificar}
               disabled={cargando}
               className={`px-8 py-3 rounded-xl font-bold text-white transition-all shadow-lg ${cargando
                 ? "bg-slate-400 cursor-not-allowed"
                 : "bg-indigo-600 hover:bg-indigo-700 active:scale-95"
                 }`}
             >
-              {cargando ? "Enviando..." : "Continuar registro"}
+              Verificar Información
             </button>
           </div>
         </div>
